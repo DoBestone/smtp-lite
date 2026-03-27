@@ -250,6 +250,8 @@ setup_repo() {
   step "获取代码"
   if [ -d "$INSTALL_DIR/.git" ]; then
     info "已有安装目录，更新代码..."
+    # 重置脚本文件的本地修改，避免 merge 冲突（config.yaml 不在版本库中，不受影响）
+    git -C "$INSTALL_DIR" checkout -- . 2>/dev/null || true
     git -C "$INSTALL_DIR" pull
     ok "代码更新完成"
   else
