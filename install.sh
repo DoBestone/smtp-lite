@@ -321,12 +321,12 @@ setup_nginx() {
     _write_nginx_http
   fi
 
-  # 启用配置（Linux）
+  # 启用配置（Linux）— SSL 路径内部已处理 ln 和 reload，此处确保兜底
   if [ "$OS" = "linux" ]; then
     sudo ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/smtp-lite"
-    sudo nginx -t && sudo systemctl reload nginx
+    sudo nginx -t && sudo systemctl reload nginx || true
   else
-    nginx -t && brew services restart nginx 2>/dev/null || nginx -s reload
+    nginx -t && { brew services restart nginx 2>/dev/null || nginx -s reload; } || true
   fi
 
   ok "Nginx 配置完成"
@@ -420,7 +420,7 @@ EOF
     _write_nginx_ssl_conf
     # 4) 自动续期 cron（使用 webroot 方式续期）
     if [ "$OS" = "linux" ]; then
-      (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --webroot -w ${webroot} --deploy-hook 'systemctl reload nginx'") \
+      ( crontab -l 2>/dev/null || true; echo "0 3 * * * certbot renew --quiet --webroot -w ${webroot} --deploy-hook 'systemctl reload nginx'" ) \
         | sort -u | crontab -
       ok "已添加证书自动续期 Cron（每天凌晨 3:00，webroot 文件验证）"
     fi
