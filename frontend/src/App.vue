@@ -271,6 +271,180 @@
             </div>
           </section>
 
+          <!-- ===== 邮件模板 ===== -->
+          <section v-if="tab === 'templates'" class="section">
+            <div class="section-head">
+              <div>
+                <h1 class="section-title">邮件模板</h1>
+                <p class="section-desc">保存常用邮件模板，发送时快速选用</p>
+              </div>
+              <button @click="openCreateTemplate" class="btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                新建模板
+              </button>
+            </div>
+            <div class="card">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>名称</th><th>主题</th><th>类型</th><th>描述</th><th>创建时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr v-for="t in templates" :key="t.id">
+                      <td><span class="cell-main">{{ t.name }}</span></td>
+                      <td>{{ t.subject || '-' }}</td>
+                      <td><span class="badge" :class="t.is_html ? 'badge-info' : ''">{{ t.is_html ? 'HTML' : '纯文本' }}</span></td>
+                      <td class="text-muted">{{ t.description || '-' }}</td>
+                      <td>{{ formatDate(t.created_at) }}</td>
+                      <td>
+                        <div class="action-group">
+                          <button @click="openEditTemplate(t)" class="btn-action">编辑</button>
+                          <button @click="deleteTemplate(t.id)" class="btn-action danger">删除</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="templates.length === 0">
+                      <td colspan="6" class="empty-cell"><div class="empty-state"><p>暂无模板</p></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== 收件人分组 ===== -->
+          <section v-if="tab === 'recipients'" class="section">
+            <div class="section-head">
+              <div>
+                <h1 class="section-title">收件人分组</h1>
+                <p class="section-desc">管理收件人分组，便于批量发送</p>
+              </div>
+              <button @click="openCreateGroup" class="btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                新建分组
+              </button>
+            </div>
+            <div class="card">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>分组名称</th><th>描述</th><th>收件人数</th><th>创建时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr v-for="g in recipientGroups" :key="g.id" :class="{ 'row-selected': currentGroupId === g.id }">
+                      <td><span class="cell-main">{{ g.name }}</span></td>
+                      <td class="text-muted">{{ g.description || '-' }}</td>
+                      <td><span class="badge">{{ g.count || 0 }}</span></td>
+                      <td>{{ formatDate(g.created_at) }}</td>
+                      <td>
+                        <div class="action-group">
+                          <button @click="loadRecipients(g.id)" class="btn-action">查看</button>
+                          <button @click="deleteGroup(g.id)" class="btn-action danger">删除</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="recipientGroups.length === 0">
+                      <td colspan="5" class="empty-cell"><div class="empty-state"><p>暂无分组</p></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- 收件人列表 -->
+            <div v-if="currentGroupId" class="card mt-20">
+              <div class="section-head" style="margin-bottom:16px">
+                <h3 style="margin:0;font-size:1rem">收件人列表</h3>
+                <div style="display:flex;gap:8px">
+                  <button @click="openBatchImport" class="btn-outline">批量导入</button>
+                  <button @click="openCreateRecipient" class="btn-primary">添加收件人</button>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>邮箱</th><th>名称</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr v-for="r in recipients" :key="r.id">
+                      <td>{{ r.email }}</td>
+                      <td>{{ r.name || '-' }}</td>
+                      <td><span class="badge" :class="r.status === 'active' ? 'badge-success' : 'badge-danger'">{{ r.status === 'active' ? '正常' : '黑名单' }}</span></td>
+                      <td><button @click="deleteRecipient(r.id)" class="btn-action danger">删除</button></td>
+                    </tr>
+                    <tr v-if="recipients.length === 0">
+                      <td colspan="4" class="empty-cell"><div class="empty-state"><p>暂无收件人</p></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Webhook ===== -->
+          <section v-if="tab === 'webhooks'" class="section">
+            <div class="section-head">
+              <div>
+                <h1 class="section-title">Webhook 回调</h1>
+                <p class="section-desc">配置事件回调，邮件发送/打开时自动通知</p>
+              </div>
+              <button @click="openCreateWebhook" class="btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                新建 Webhook
+              </button>
+            </div>
+            <div class="card">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>名称</th><th>URL</th><th>事件</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr v-for="w in webhooks" :key="w.id">
+                      <td><span class="cell-main">{{ w.name }}</span></td>
+                      <td class="text-muted text-sm" style="max-width:200px">{{ w.url }}</td>
+                      <td><span class="badge badge-info">{{ w.events ? JSON.parse(w.events).length : 0 }} 个</span></td>
+                      <td><span class="badge" :class="w.enabled ? 'badge-success' : ''">{{ w.enabled ? '启用' : '禁用' }}</span></td>
+                      <td>
+                        <div class="action-group">
+                          <button @click="toggleWebhook(w.id)" class="btn-action">{{ w.enabled ? '禁用' : '启用' }}</button>
+                          <button @click="testWebhook(w.id)" class="btn-action">测试</button>
+                          <button @click="deleteWebhook(w.id)" class="btn-action danger">删除</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="webhooks.length === 0">
+                      <td colspan="5" class="empty-cell"><div class="empty-state"><p>暂无 Webhook</p></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== 黑名单 ===== -->
+          <section v-if="tab === 'blacklist'" class="section">
+            <div class="section-head">
+              <div>
+                <h1 class="section-title">黑名单</h1>
+                <p class="section-desc">禁止向这些邮箱发送邮件</p>
+              </div>
+              <button @click="openCreateBlacklist" class="btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                添加黑名单
+              </button>
+            </div>
+            <div class="card">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>邮箱</th><th>原因</th><th>添加时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr v-for="b in blacklist" :key="b.id">
+                      <td><span class="cell-main">{{ b.email }}</span></td>
+                      <td class="text-muted">{{ b.reason || '-' }}</td>
+                      <td>{{ formatDate(b.created_at) }}</td>
+                      <td><button @click="deleteBlacklist(b.id)" class="btn-action danger">移除</button></td>
+                    </tr>
+                    <tr v-if="blacklist.length === 0">
+                      <td colspan="4" class="empty-cell"><div class="empty-state"><p>暂无黑名单</p></div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
           <!-- ===== 发送日志 ===== -->
           <section v-if="tab === 'logs'" class="section">
             <div class="section-head">
@@ -385,6 +559,20 @@
                 </div>
                 <div class="stat-num">{{ (stats.success_rate || 0).toFixed(1) }}<span class="stat-unit">%</span></div>
                 <div class="stat-label">成功率</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon orange">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                </div>
+                <div class="stat-num">{{ stats.opened || 0 }}</div>
+                <div class="stat-label">已打开 <span v-if="stats.open_rate">({{ stats.open_rate.toFixed(1) }}%)</span></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon teal">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke="currentColor" stroke-width="1.8"/><polyline points="15 3 21 3 21 9" stroke="currentColor" stroke-width="1.8"/><line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                </div>
+                <div class="stat-num">{{ stats.clicked || 0 }}</div>
+                <div class="stat-label">已点击 <span v-if="stats.click_rate">({{ stats.click_rate.toFixed(1) }}%)</span></div>
               </div>
             </div>
             <div v-if="smtpAccounts.length > 0" class="card">
@@ -771,6 +959,108 @@
       </div>
     </transition>
 
+    <!-- ========== 模板弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showTemplateModal" class="modal-overlay" @click.self="showTemplateModal = false">
+        <div class="modal-box" style="max-width:500px">
+          <div class="modal-head">
+            <h3>{{ editingTemplate ? '编辑模板' : '新建模板' }}</h3>
+            <button class="modal-close" @click="showTemplateModal = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <form @submit.prevent="saveTemplate">
+            <div class="field"><label>模板名称 <span class="required">*</span></label><input v-model="templateForm.name" placeholder="如：验证码模板" required /></div>
+            <div class="field"><label>邮件主题</label><input v-model="templateForm.subject" placeholder="邮件主题" /></div>
+            <div class="field"><label>邮件内容 <span class="required">*</span></label><textarea v-model="templateForm.body" rows="6" placeholder="邮件正文..." required></textarea></div>
+            <div class="field"><label class="checkbox-label"><input type="checkbox" v-model="templateForm.is_html" /> HTML 格式</label></div>
+            <div class="field"><label>描述</label><input v-model="templateForm.description" placeholder="可选描述" /></div>
+            <div class="modal-actions">
+              <button type="button" class="btn-ghost" @click="showTemplateModal = false">取消</button>
+              <button type="submit" class="btn-primary">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== 分组弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showGroupModal" class="modal-overlay" @click.self="showGroupModal = false">
+        <div class="modal-box" style="max-width:380px">
+          <div class="modal-head"><h3>新建分组</h3><button class="modal-close" @click="showGroupModal = false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+          <form @submit.prevent="saveGroup">
+            <div class="field"><label>分组名称 <span class="required">*</span></label><input v-model="groupForm.name" required /></div>
+            <div class="field"><label>描述</label><input v-model="groupForm.description" /></div>
+            <div class="modal-actions"><button type="button" class="btn-ghost" @click="showGroupModal = false">取消</button><button type="submit" class="btn-primary">创建</button></div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== 收件人弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showRecipientModal" class="modal-overlay" @click.self="showRecipientModal = false">
+        <div class="modal-box" style="max-width:380px">
+          <div class="modal-head"><h3>添加收件人</h3><button class="modal-close" @click="showRecipientModal = false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+          <form @submit.prevent="saveRecipient">
+            <div class="field"><label>邮箱 <span class="required">*</span></label><input v-model="recipientForm.email" type="email" required /></div>
+            <div class="field"><label>名称</label><input v-model="recipientForm.name" /></div>
+            <div class="modal-actions"><button type="button" class="btn-ghost" @click="showRecipientModal = false">取消</button><button type="submit" class="btn-primary">添加</button></div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== 批量导入弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showBatchImport" class="modal-overlay" @click.self="showBatchImport = false">
+        <div class="modal-box" style="max-width:450px">
+          <div class="modal-head"><h3>批量导入收件人</h3><button class="modal-close" @click="showBatchImport = false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+          <form @submit.prevent="doBatchImport">
+            <div class="field"><label>邮箱列表（每行一个或逗号分隔）</label><textarea v-model="batchEmails" rows="8" placeholder="user1@example.com&#10;user2@example.com&#10;..." required></textarea></div>
+            <div class="modal-actions"><button type="button" class="btn-ghost" @click="showBatchImport = false">取消</button><button type="submit" class="btn-primary">导入</button></div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== Webhook 弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showWebhookModal" class="modal-overlay" @click.self="showWebhookModal = false">
+        <div class="modal-box" style="max-width:450px">
+          <div class="modal-head"><h3>新建 Webhook</h3><button class="modal-close" @click="showWebhookModal = false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+          <form @submit.prevent="saveWebhook">
+            <div class="field"><label>名称 <span class="required">*</span></label><input v-model="webhookForm.name" required /></div>
+            <div class="field"><label>URL <span class="required">*</span></label><input v-model="webhookForm.url" type="url" placeholder="https://your-server.com/webhook" required /></div>
+            <div class="field"><label>Secret（可选）</label><input v-model="webhookForm.secret" placeholder="用于签名验证" /></div>
+            <div class="field"><label>订阅事件</label>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+                <label v-for="e in webhookEvents" :key="e.key" class="checkbox-label" style="margin-right:12px">
+                  <input type="checkbox" :value="e.key" v-model="webhookForm.events" /> {{ e.label }}
+                </label>
+              </div>
+            </div>
+            <div class="modal-actions"><button type="button" class="btn-ghost" @click="showWebhookModal = false">取消</button><button type="submit" class="btn-primary">创建</button></div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== 黑名单弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showBlacklistModal" class="modal-overlay" @click.self="showBlacklistModal = false">
+        <div class="modal-box" style="max-width:380px">
+          <div class="modal-head"><h3>添加黑名单</h3><button class="modal-close" @click="showBlacklistModal = false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+          <form @submit.prevent="saveBlacklist">
+            <div class="field"><label>邮箱 <span class="required">*</span></label><input v-model="blacklistForm.email" type="email" required /></div>
+            <div class="field"><label>原因</label><input v-model="blacklistForm.reason" placeholder="可选" /></div>
+            <div class="modal-actions"><button type="button" class="btn-ghost" @click="showBlacklistModal = false">取消</button><button type="submit" class="btn-primary">添加</button></div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
     <!-- ========== 确认弹窗 ========== -->
     <transition name="modal-fade">
       <div v-if="confirmDialog.show" class="modal-overlay" @click.self="confirmDialog.show = false">
@@ -896,11 +1186,46 @@ export default {
       updateProgress: '',  // '' | 'updating' | 'done' | 'error' | 'timeout'
       updateStep: 0,
       toast: { show: false, msg: '', type: 'success' },
+      // 模板相关
+      templates: [],
+      showTemplateModal: false,
+      editingTemplate: null,
+      templateForm: { name: '', subject: '', body: '', is_html: true, description: '' },
+      // 收件人相关
+      recipientGroups: [],
+      recipients: [],
+      currentGroupId: '',
+      showGroupModal: false,
+      groupForm: { name: '', description: '' },
+      showRecipientModal: false,
+      recipientForm: { email: '', name: '' },
+      showBatchImport: false,
+      batchEmails: '',
+      // Webhook 相关
+      webhooks: [],
+      showWebhookModal: false,
+      webhookForm: { name: '', url: '', secret: '', events: [] },
+      webhookEvents: [
+        { key: 'send_success', label: '发送成功' },
+        { key: 'send_failed', label: '发送失败' },
+        { key: 'opened', label: '邮件打开' },
+        { key: 'clicked', label: '链接点击' },
+      ],
+      // 黑名单相关
+      blacklist: [],
+      showBlacklistModal: false,
+      blacklistForm: { email: '', reason: '' },
+      // 队列状态
+      queueStats: {},
       navItems: [
         { key: 'smtp', label: 'SMTP 账号', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' },
         { key: 'keys', label: 'API Key', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' },
+        { key: 'templates', label: '模板', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/></svg>' },
+        { key: 'recipients', label: '收件人', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.5"/></svg>' },
         { key: 'logs', label: '发送日志', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' },
         { key: 'stats', label: '统计', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' },
+        { key: 'webhooks', label: 'Webhook', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="1.5"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.5"/></svg>' },
+        { key: 'blacklist', label: '黑名单', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/></svg>' },
         { key: 'docs', label: 'API 文档', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/><line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' },
       ]
     }
@@ -1032,7 +1357,16 @@ export default {
     },
     getHeaders() { return { Authorization: `Bearer ${localStorage.getItem('token')}` } },
     async loadData() {
-      await Promise.all([this.loadSmtpAccounts(), this.loadApiKeys(), this.loadStats()])
+      await Promise.all([
+        this.loadSmtpAccounts(),
+        this.loadApiKeys(),
+        this.loadStats(),
+        this.loadTemplates(),
+        this.loadRecipientGroups(),
+        this.loadWebhooks(),
+        this.loadBlacklist(),
+        this.loadQueueStats(),
+      ])
     },
     async loadSmtpAccounts() {
       try {
@@ -1202,6 +1536,214 @@ export default {
     formatDate(date) {
       if (!date) return '-'
       return new Date(date).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    },
+    // ===== 模板管理 =====
+    async loadTemplates() {
+      try {
+        const res = await axios.get(`${API}/templates`, { headers: this.getHeaders() })
+        this.templates = res.data
+      } catch(e) { console.error('加载模板失败', e) }
+    },
+    openCreateTemplate() {
+      this.editingTemplate = null
+      this.templateForm = { name: '', subject: '', body: '', is_html: true, description: '' }
+      this.showTemplateModal = true
+    },
+    openEditTemplate(t) {
+      this.editingTemplate = t
+      this.templateForm = { name: t.name, subject: t.subject, body: t.body, is_html: t.is_html, description: t.description }
+      this.showTemplateModal = true
+    },
+    async saveTemplate() {
+      try {
+        if (this.editingTemplate) {
+          await axios.put(`${API}/templates/${this.editingTemplate.id}`, this.templateForm, { headers: this.getHeaders() })
+        } else {
+          await axios.post(`${API}/templates`, this.templateForm, { headers: this.getHeaders() })
+        }
+        this.showTemplateModal = false
+        this.loadTemplates()
+        this.showToast(this.editingTemplate ? '模板已更新' : '模板已创建')
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '保存失败', 'error')
+      }
+    },
+    async deleteTemplate(id) {
+      if (!confirm('确定删除此模板？')) return
+      try {
+        await axios.delete(`${API}/templates/${id}`, { headers: this.getHeaders() })
+        this.loadTemplates()
+        this.showToast('模板已删除')
+      } catch(e) {
+        this.showToast('删除失败', 'error')
+      }
+    },
+    // ===== 收件人管理 =====
+    async loadRecipientGroups() {
+      try {
+        const res = await axios.get(`${API}/recipient-groups`, { headers: this.getHeaders() })
+        this.recipientGroups = res.data
+      } catch(e) { console.error('加载分组失败', e) }
+    },
+    async loadRecipients(groupId) {
+      if (!groupId) return
+      this.currentGroupId = groupId
+      try {
+        const res = await axios.get(`${API}/recipients?group_id=${groupId}`, { headers: this.getHeaders() })
+        this.recipients = res.data
+      } catch(e) { console.error('加载收件人失败', e) }
+    },
+    openCreateGroup() {
+      this.groupForm = { name: '', description: '' }
+      this.showGroupModal = true
+    },
+    async saveGroup() {
+      try {
+        await axios.post(`${API}/recipient-groups`, this.groupForm, { headers: this.getHeaders() })
+        this.showGroupModal = false
+        this.loadRecipientGroups()
+        this.showToast('分组已创建')
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '创建失败', 'error')
+      }
+    },
+    async deleteGroup(id) {
+      if (!confirm('确定删除此分组？分组内的收件人也会被删除。')) return
+      try {
+        await axios.delete(`${API}/recipient-groups/${id}`, { headers: this.getHeaders() })
+        this.loadRecipientGroups()
+        if (this.currentGroupId === id) {
+          this.currentGroupId = ''
+          this.recipients = []
+        }
+        this.showToast('分组已删除')
+      } catch(e) {
+        this.showToast('删除失败', 'error')
+      }
+    },
+    openCreateRecipient() {
+      this.recipientForm = { email: '', name: '' }
+      this.showRecipientModal = true
+    },
+    async saveRecipient() {
+      try {
+        await axios.post(`${API}/recipients`, { ...this.recipientForm, group_id: this.currentGroupId }, { headers: this.getHeaders() })
+        this.showRecipientModal = false
+        this.loadRecipients(this.currentGroupId)
+        this.showToast('收件人已添加')
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '添加失败', 'error')
+      }
+    },
+    async deleteRecipient(id) {
+      if (!confirm('确定删除此收件人？')) return
+      try {
+        await axios.delete(`${API}/recipients/${id}`, { headers: this.getHeaders() })
+        this.loadRecipients(this.currentGroupId)
+        this.showToast('收件人已删除')
+      } catch(e) {
+        this.showToast('删除失败', 'error')
+      }
+    },
+    openBatchImport() {
+      this.batchEmails = ''
+      this.showBatchImport = true
+    },
+    async doBatchImport() {
+      try {
+        const res = await axios.post(`${API}/recipients/batch`, { group_id: this.currentGroupId, emails: this.batchEmails }, { headers: this.getHeaders() })
+        this.showBatchImport = false
+        this.loadRecipients(this.currentGroupId)
+        this.showToast(`成功导入 ${res.data.success} 个收件人`)
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '导入失败', 'error')
+      }
+    },
+    // ===== Webhook 管理 =====
+    async loadWebhooks() {
+      try {
+        const res = await axios.get(`${API}/webhooks`, { headers: this.getHeaders() })
+        this.webhooks = res.data
+      } catch(e) { console.error('加载 Webhook 失败', e) }
+    },
+    openCreateWebhook() {
+      this.editingWebhook = null
+      this.webhookForm = { name: '', url: '', secret: '', events: [] }
+      this.showWebhookModal = true
+    },
+    async saveWebhook() {
+      try {
+        await axios.post(`${API}/webhooks`, this.webhookForm, { headers: this.getHeaders() })
+        this.showWebhookModal = false
+        this.loadWebhooks()
+        this.showToast('Webhook 已创建')
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '保存失败', 'error')
+      }
+    },
+    async toggleWebhook(id) {
+      try {
+        await axios.post(`${API}/webhooks/${id}/toggle`, {}, { headers: this.getHeaders() })
+        this.loadWebhooks()
+      } catch(e) {
+        this.showToast('操作失败', 'error')
+      }
+    },
+    async deleteWebhook(id) {
+      if (!confirm('确定删除此 Webhook？')) return
+      try {
+        await axios.delete(`${API}/webhooks/${id}`, { headers: this.getHeaders() })
+        this.loadWebhooks()
+        this.showToast('Webhook 已删除')
+      } catch(e) {
+        this.showToast('删除失败', 'error')
+      }
+    },
+    async testWebhook(id) {
+      try {
+        await axios.post(`${API}/webhooks/${id}/test`, {}, { headers: this.getHeaders() })
+        this.showToast('测试事件已发送')
+      } catch(e) {
+        this.showToast('发送失败', 'error')
+      }
+    },
+    // ===== 黑名单管理 =====
+    async loadBlacklist() {
+      try {
+        const res = await axios.get(`${API}/blacklist`, { headers: this.getHeaders() })
+        this.blacklist = res.data
+      } catch(e) { console.error('加载黑名单失败', e) }
+    },
+    openCreateBlacklist() {
+      this.blacklistForm = { email: '', reason: '' }
+      this.showBlacklistModal = true
+    },
+    async saveBlacklist() {
+      try {
+        await axios.post(`${API}/blacklist`, this.blacklistForm, { headers: this.getHeaders() })
+        this.showBlacklistModal = false
+        this.loadBlacklist()
+        this.showToast('已添加到黑名单')
+      } catch(e) {
+        this.showToast(e.response?.data?.error || '添加失败', 'error')
+      }
+    },
+    async deleteBlacklist(id) {
+      if (!confirm('确定移除此黑名单？')) return
+      try {
+        await axios.delete(`${API}/blacklist/${id}`, { headers: this.getHeaders() })
+        this.loadBlacklist()
+        this.showToast('已从黑名单移除')
+      } catch(e) {
+        this.showToast('操作失败', 'error')
+      }
+    },
+    // ===== 队列状态 =====
+    async loadQueueStats() {
+      try {
+        const res = await axios.get(`${API}/queue/stats`, { headers: this.getHeaders() })
+        this.queueStats = res.data
+      } catch(e) { console.error('加载队列状态失败', e) }
     }
   }
 }
@@ -1490,6 +2032,8 @@ tbody tr:hover { background: #fafcff; }
 .stat-icon.red    { background: var(--red-50);    color: var(--red); }
 .stat-icon.cyan   { background: var(--cyan-50);   color: var(--cyan); }
 .stat-icon.purple { background: var(--purple-50); color: var(--purple); }
+.stat-icon.orange  { background: #fff7ed; color: #ea580c; }
+.stat-icon.teal    { background: #f0fdfa; color: #0d9488; }
 .stat-num { font-size: clamp(1.75rem,3vw,2.25rem); font-weight: 700; color: var(--gray-900); letter-spacing: -0.03em; line-height: 1; }
 .stat-unit { font-size: 1.2rem; font-weight: 600; }
 .stat-label { font-size: 0.8125rem; color: var(--gray-400); font-weight: 500; }
