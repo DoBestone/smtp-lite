@@ -232,6 +232,25 @@ check_nginx() {
   ok "Nginx 安装完成"
 }
 
+check_node() {
+  if command -v node &>/dev/null; then
+    ok "Node.js $(node -v)"
+    return
+  fi
+  warn "Node.js 未安装，正在安装..."
+  case "$PKG" in
+    brew) brew install node ;;
+    apt)
+      curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+      sudo apt-get install -y nodejs
+      ;;
+    dnf)  sudo dnf install -y nodejs npm ;;
+    yum)  sudo yum install -y nodejs npm ;;
+    *)    err "请手动安装 Node.js: https://nodejs.org" ;;
+  esac
+  ok "Node.js $(node -v) 安装完成"
+}
+
 check_certbot() {
   $USE_SSL || return
   if command -v certbot &>/dev/null; then
@@ -265,7 +284,18 @@ setup_repo() {
   fi
 }
 
-# ── 编译 ─────────────────────────────────────────────────────
+# ── 编译前端 ─────────────────────────────────────────────────
+build_frontend() {
+  step "构建前端"
+  cd "$INSTALL_DIR/frontend"
+  info "npm install ..."
+  npm install --silent
+  info "npm run build ..."
+  npm run build
+  ok "前端构建完成"
+}
+
+# ── 编译 Go ──────────────────────────────────────────────────
 build() {
   step "编译"
   cd "$INSTALL_DIR"
@@ -643,10 +673,12 @@ main() {
   step "依赖检查"
   check_git
   check_go
+  check_node
   check_nginx
   check_certbot
   setup_repo          # 克隆/更新仓库
-  build               # 编译
+  build_frontend      # 构建前端
+  build               # 编译 Go
   write_config        # 写入 config.yaml
   setup_nginx         # Nginx 配置（如需要）
   setup_service       # 系统服务（如需要）

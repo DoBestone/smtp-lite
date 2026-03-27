@@ -825,6 +825,10 @@ cmd_update() {
   ok "代码更新完成"
 
   info "重新编译..."
+  if [ -d "$INSTALL_DIR/frontend" ] && command -v npm &>/dev/null; then
+    info "npm run build (frontend)..."
+    (cd "$INSTALL_DIR/frontend" && npm install --silent && npm run build) || warn "前端构建失败，跳过"
+  fi
   go build -o smtp-lite ./cmd/server/ || err "编译失败"
   local new_ver
   new_ver=$(get_version)
@@ -1083,6 +1087,10 @@ cmd_nginx() {
 cmd_build() {
   echo -e "\n  ${W}── 重新编译 ──${N}"
   cd "$INSTALL_DIR"
+  if [ -d "frontend" ] && command -v npm &>/dev/null; then
+    info "npm run build (frontend)..."
+    (cd frontend && npm install --silent && npm run build) || warn "前端构建失败，跳过"
+  fi
   info "go build ./cmd/server/ ..."
   go build -o smtp-lite ./cmd/server/ || err "编译失败"
   local version
