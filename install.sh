@@ -275,8 +275,8 @@ write_config() {
 
   # 随机密钥（兼容 macOS/Linux）
   local jwt_secret enc_key
-  jwt_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
-  enc_key=$(LC_ALL=C    tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
+  jwt_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
+  enc_key=$(LC_ALL=C    tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
 
   cat > config.yaml <<EOF
 server:

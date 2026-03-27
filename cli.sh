@@ -865,7 +865,7 @@ cmd_config() {
       echo -e "\n  ${W}── 重置 JWT Secret ──${N}"
       prompt_yn "重置 JWT Secret 将使所有现有登录失效，确认？" "n" || return
       local new_secret
-      new_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
+      new_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
       yaml_set "secret" "$new_secret"
       ok "JWT Secret 已重置"
       restart_service
@@ -876,7 +876,7 @@ cmd_config() {
       warn "建议先导出 SMTP 账号信息，重置后重新添加"
       prompt_yn "确认重置加密密钥？此操作不可逆！" "n" || return
       local new_key
-      new_key=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
+      new_key=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
       yaml_set "key" "$new_key"
       ok "加密密钥已重置"
       restart_service
@@ -1270,8 +1270,8 @@ cmd_reset() {
 
   # 重新生成 config.yaml
   local jwt_secret enc_key
-  jwt_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
-  enc_key=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32)
+  jwt_secret=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
+  enc_key=$(LC_ALL=C tr -dc 'A-Za-z0-9!@#%^&*_-' </dev/urandom | head -c 32 || true)
 
   local new_user="admin" new_pass new_port="8090"
   prompt_input new_user "管理员用户名" "admin"
