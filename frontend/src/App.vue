@@ -486,9 +486,11 @@
                     <tbody>
                       <tr><td><code>to</code></td><td>string</td><td><span class="req-yes">是</span></td><td>收件人邮箱</td></tr>
                       <tr><td><code>subject</code></td><td>string</td><td><span class="req-yes">是</span></td><td>邮件主题</td></tr>
-                      <tr><td><code>body</code></td><td>string</td><td><span class="req-yes">是</span></td><td>邮件正文</td></tr>
+                      <tr><td><code>body</code></td><td>string</td><td><span class="req-yes">是</span></td><td>邮件正文，is_html=true 时支持 HTML</td></tr>
+                      <tr><td><code>is_html</code></td><td>bool</td><td><span class="req-no">否</span></td><td>true 时以 HTML 格式发送（默认 false）</td></tr>
                       <tr><td><code>from_name</code></td><td>string</td><td><span class="req-no">否</span></td><td>发件人显示名称</td></tr>
-                      <tr><td><code>is_html</code></td><td>bool</td><td><span class="req-no">否</span></td><td>是否 HTML（默认 false）</td></tr>
+                      <tr><td><code>cc</code></td><td>string[]</td><td><span class="req-no">否</span></td><td>抄送邮箱列表，收件人可见</td></tr>
+                      <tr><td><code>bcc</code></td><td>string[]</td><td><span class="req-no">否</span></td><td>密送邮箱列表，收件人不可见</td></tr>
                     </tbody>
                   </table>
                 </div>
