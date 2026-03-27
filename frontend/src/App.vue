@@ -423,7 +423,7 @@
               </div>
               <div class="base-url-pill">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10A15.3 15.3 0 018 12a15.3 15.3 0 014-10z" stroke="currentColor" stroke-width="1.8"/></svg>
-                Base URL: <code>http://your-server:8090</code>
+                Base URL: <code>{{ baseUrl }}</code>
               </div>
             </div>
 
@@ -438,9 +438,7 @@
                   <p class="doc-desc">使用用户名密码获取 JWT Token，用于管理界面 API 调用。</p>
                   <div class="code-block-wrap">
                     <div class="code-block-label">请求示例</div>
-                    <pre class="code-block">curl -X POST http://your-server:8090/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'</pre>
+                    <pre class="code-block" v-text="curlLogin"></pre>
                   </div>
                   <div class="code-block-wrap">
                     <div class="code-block-label">响应示例</div>
@@ -456,10 +454,7 @@
                   <p class="doc-desc">修改登录密码，修改成功后需要重新登录。</p>
                   <div class="code-block-wrap">
                     <div class="code-block-label">请求示例</div>
-                    <pre class="code-block">curl -X POST http://your-server:8090/api/v1/auth/change-password \
-  -H "Authorization: Bearer {token}" \
-  -H "Content-Type: application/json" \
-  -d '{"old_password":"admin123","new_password":"new-pass"}'</pre>
+                    <pre class="code-block" v-text="curlChangePassword"></pre>
                   </div>
                 </div>
               </div>
@@ -477,29 +472,11 @@
                 <div class="doc-grid-2">
                   <div class="code-block-wrap">
                     <div class="code-block-label">使用 API Key（推荐）</div>
-                    <pre class="code-block">curl -X POST http://your-server:8090/api/v1/send \
-  -H "X-API-Key: smtp_xxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "recipient@example.com",
-    "subject": "验证码通知",
-    "body": "您的验证码是：123456",
-    "from_name": "我的服务",
-    "is_html": false
-  }'</pre>
+                    <pre class="code-block" v-text="curlSendApiKey"></pre>
                   </div>
                   <div class="code-block-wrap">
                     <div class="code-block-label">发送 HTML 邮件</div>
-                    <pre class="code-block">curl -X POST http://your-server:8090/api/v1/send \
-  -H "X-API-Key: smtp_xxxxxxxxxxxx" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "user@example.com",
-    "subject": "欢迎注册",
-    "body": "&lt;h1&gt;欢迎&lt;/h1&gt;&lt;p&gt;感谢注册！&lt;/p&gt;",
-    "from_name": "我的服务",
-    "is_html": true
-  }'</pre>
+                    <pre class="code-block" v-text="curlSendHtml"></pre>
                   </div>
                 </div>
                 <div class="params-table-wrap">
@@ -531,65 +508,10 @@
                 <button :class="['tab-simple', { active: codeTab === 'go' }]" @click="codeTab = 'go'">Go</button>
               </div>
               <div class="code-block-wrap">
-                <pre v-if="codeTab === 'python'" class="code-block">import requests
-
-API_URL = "http://your-server:8090/api/v1/send"
-API_KEY = "smtp_xxxxxxxxxxxx"
-
-def send_email(to, subject, body, is_html=False):
-    resp = requests.post(API_URL,
-        headers={"X-API-Key": API_KEY},
-        json={"to": to, "subject": subject, "body": body, "is_html": is_html},
-        timeout=30)
-    return resp.json()
-
-result = send_email("user@example.com", "验证码", "您的验证码是：123456")
-print(result)</pre>
-                <pre v-if="codeTab === 'nodejs'" class="code-block">const axios = require('axios');
-
-const API_URL = 'http://your-server:8090/api/v1/send';
-const API_KEY = 'smtp_xxxxxxxxxxxx';
-
-async function sendEmail(to, subject, body, isHtml = false) {
-  const resp = await axios.post(API_URL,
-    { to, subject, body, is_html: isHtml },
-    { headers: { 'X-API-Key': API_KEY } });
-  return resp.data;
-}
-
-sendEmail('user@example.com', '验证码', '您的验证码是：123456').then(console.log);</pre>
-                <pre v-if="codeTab === 'php'" class="code-block">&lt;?php
-function sendEmail($to, $subject, $body) {
-    $ch = curl_init('http://your-server:8090/api/v1/send');
-    curl_setopt_array($ch, [
-        CURLOPT_POST =&gt; true,
-        CURLOPT_POSTFIELDS =&gt; json_encode(['to'=&gt;$to,'subject'=&gt;$subject,'body'=&gt;$body]),
-        CURLOPT_RETURNTRANSFER =&gt; true,
-        CURLOPT_HTTPHEADER =&gt; ['Content-Type: application/json', 'X-API-Key: smtp_xxxx'],
-    ]);
-    $r = curl_exec($ch); curl_close($ch);
-    return json_decode($r, true);
-}
-var_dump(sendEmail('user@example.com', '验证码', '您的验证码是：123456'));</pre>
-                <pre v-if="codeTab === 'go'" class="code-block">package main
-
-import (
-    "bytes"; "encoding/json"; "fmt"; "net/http"
-)
-
-func sendEmail(to, subject, body string) {
-    payload, _ := json.Marshal(map[string]interface{}{
-        "to": to, "subject": subject, "body": body,
-    })
-    req, _ := http.NewRequest("POST", "http://your-server:8090/api/v1/send", bytes.NewReader(payload))
-    req.Header.Set("Content-Type", "application/json")
-    req.Header.Set("X-API-Key", "smtp_xxxxxxxxxxxx")
-    resp, _ := http.DefaultClient.Do(req)
-    defer resp.Body.Close()
-    fmt.Println(resp.Status)
-}
-
-func main() { sendEmail("user@example.com", "验证码", "您的验证码是：123456") }</pre>
+                <pre v-if="codeTab === 'python'" class="code-block" v-text="codeExamplePython"></pre>
+                <pre v-if="codeTab === 'nodejs'" class="code-block" v-text="codeExampleNodejs"></pre>
+                <pre v-if="codeTab === 'php'" class="code-block" v-text="codeExamplePhp"></pre>
+                <pre v-if="codeTab === 'go'" class="code-block" v-text="codeExampleGo"></pre>
               </div>
             </div>
 
@@ -904,6 +826,35 @@ export default {
   mounted() {
     const token = localStorage.getItem('token')
     if (token) { this.isLoggedIn = true; this.loadData() }
+  },
+  computed: {
+    baseUrl() {
+      return window.location.origin
+    },
+    curlLogin() {
+      return `curl -X POST ${this.baseUrl}/api/v1/auth/login \\\n  -H "Content-Type: application/json" \\\n  -d '{"username":"admin","password":"admin123"}'`
+    },
+    curlChangePassword() {
+      return `curl -X POST ${this.baseUrl}/api/v1/auth/change-password \\\n  -H "Authorization: Bearer {token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"old_password":"admin123","new_password":"new-pass"}'`
+    },
+    curlSendApiKey() {
+      return `curl -X POST ${this.baseUrl}/api/v1/send \\\n  -H "X-API-Key: smtp_xxxxxxxxxxxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "to": "recipient@example.com",\n    "subject": "验证码通知",\n    "body": "您的验证码是：123456",\n    "from_name": "我的服务",\n    "is_html": false\n  }'`
+    },
+    curlSendHtml() {
+      return `curl -X POST ${this.baseUrl}/api/v1/send \\\n  -H "X-API-Key: smtp_xxxxxxxxxxxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "to": "user@example.com",\n    "subject": "欢迎注册",\n    "body": "<h1>欢迎</h1><p>感谢注册！</p>",\n    "from_name": "我的服务",\n    "is_html": true\n  }'`
+    },
+    codeExamplePython() {
+      return `import requests\n\nAPI_URL = "${this.baseUrl}/api/v1/send"\nAPI_KEY = "smtp_xxxxxxxxxxxx"\n\ndef send_email(to, subject, body, is_html=False):\n    resp = requests.post(API_URL,\n        headers={"X-API-Key": API_KEY},\n        json={"to": to, "subject": subject, "body": body, "is_html": is_html},\n        timeout=30)\n    return resp.json()\n\nresult = send_email("user@example.com", "验证码", "您的验证码是：123456")\nprint(result)`
+    },
+    codeExampleNodejs() {
+      return `const axios = require('axios');\n\nconst API_URL = '${this.baseUrl}/api/v1/send';\nconst API_KEY = 'smtp_xxxxxxxxxxxx';\n\nasync function sendEmail(to, subject, body, isHtml = false) {\n  const resp = await axios.post(API_URL,\n    { to, subject, body, is_html: isHtml },\n    { headers: { 'X-API-Key': API_KEY } });\n  return resp.data;\n}\n\nsendEmail('user@example.com', '验证码', '您的验证码是：123456').then(console.log);`
+    },
+    codeExamplePhp() {
+      return `<?php\nfunction sendEmail($to, $subject, $body) {\n    $ch = curl_init('${this.baseUrl}/api/v1/send');\n    curl_setopt_array($ch, [\n        CURLOPT_POST => true,\n        CURLOPT_POSTFIELDS => json_encode(['to'=>$to,'subject'=>$subject,'body'=>$body]),\n        CURLOPT_RETURNTRANSFER => true,\n        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'X-API-Key: smtp_xxxx'],\n    ]);\n    $r = curl_exec($ch); curl_close($ch);\n    return json_decode($r, true);\n}\nvar_dump(sendEmail('user@example.com', '验证码', '您的验证码是：123456'));`
+    },
+    codeExampleGo() {
+      return `package main\n\nimport (\n    "bytes"; "encoding/json"; "fmt"; "net/http"\n)\n\nfunc sendEmail(to, subject, body string) {\n    payload, _ := json.Marshal(map[string]interface{}{\n        "to": to, "subject": subject, "body": body,\n    })\n    req, _ := http.NewRequest("POST", "${this.baseUrl}/api/v1/send", bytes.NewReader(payload))\n    req.Header.Set("Content-Type", "application/json")\n    req.Header.Set("X-API-Key", "smtp_xxxxxxxxxxxx")\n    resp, _ := http.DefaultClient.Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}\n\nfunc main() { sendEmail("user@example.com", "验证码", "您的验证码是：123456") }`
+    },
   },
   methods: {
     showToast(msg, type = 'success') {
