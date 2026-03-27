@@ -1,0 +1,17 @@
+server:
+  port: 8090
+  mode: release  # debug/release
+
+# 登录账号配置
+auth:
+  username: admin
+  password: change-me  # 请修改为强密码
+
+# JWT 配置
+jwt:
+  secret: change-this-to-random-32-byte-string
+  expire_hours: 168  # 7 天
+
+# 加密密钥（必须 32 字节）
+encryption:
+  key: smtp-lite-encryption-key-32b!

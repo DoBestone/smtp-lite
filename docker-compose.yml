@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  smtp-lite:
+    build: .
+    container_name: smtp-lite
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - smtp-data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      # 可通过环境变量覆盖配置
+      # - SMTP_USERNAME=admin
+      # - SMTP_PASSWORD=your-password
+      # - SMTP_JWT_SECRET=your-secret
+      # - SMTP_ENCRYPTION_KEY=your-32-byte-encryption-key
+
+volumes:
+  smtp-data:
