@@ -7,9 +7,17 @@
 set -euo pipefail
 
 # ── 自动检测安装目录 ──────────────────────────────────────────
-# 优先使用脚本所在目录，否则回退到 $HOME/smtp-lite
-if [ -f "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/config.yaml" ]; then
-  INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 解析软链接后定位脚本真实路径，否则回退到 $HOME/smtp-lite
+_SCRIPT="${BASH_SOURCE[0]}"
+while [ -L "$_SCRIPT" ]; do
+  _DIR="$(cd "$(dirname "$_SCRIPT")" && pwd)"
+  _SCRIPT="$(readlink "$_SCRIPT")"
+  [[ "$_SCRIPT" != /* ]] && _SCRIPT="$_DIR/$_SCRIPT"
+done
+_REAL_DIR="$(cd "$(dirname "$_SCRIPT")" && pwd)"
+
+if [ -f "$_REAL_DIR/config.yaml" ]; then
+  INSTALL_DIR="$_REAL_DIR"
 elif [ -f "$HOME/smtp-lite/config.yaml" ]; then
   INSTALL_DIR="$HOME/smtp-lite"
 else

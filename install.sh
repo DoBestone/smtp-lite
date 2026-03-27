@@ -436,6 +436,7 @@ _write_nginx_ssl_conf() {
   local tee_cmd; [ "$OS" = "darwin" ] && tee_cmd="tee" || tee_cmd="sudo tee"
   $tee_cmd "$NGINX_CONF" > /dev/null <<EOF
 # HTTP → HTTPS 重定向（保留证书续期验证路径）
+# 兼容 Cloudflare CDN Flexible 模式：CF 以 HTTP 回源但携带 X-Forwarded-Proto: https
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -447,8 +448,21 @@ server {
     }
 
     location / {
+        # 如果经过 Cloudflare 代理（Flexible 模式），直接反代不重定向
+        if (\$http_x_forwarded_proto = "https") {
+            proxy_pass         http://127.0.0.1:${PORT};
+            break;
+        }
         return 301 https://\$server_name\$request_uri;
     }
+
+    # Cloudflare 代理时的反代头（供 if 分支使用）
+    proxy_http_version 1.1;
+    proxy_set_header   Host              \$host;
+    proxy_set_header   X-Real-IP         \$remote_addr;
+    proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 60s;
 }
 
 # HTTPS
