@@ -44,6 +44,7 @@ func main() {
 	smtpHandler := handler.NewSmtpHandler(smtpService)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	sendHandler := handler.NewSendHandler(sendService, smtpService)
+	systemHandler := handler.NewSystemHandler()
 
 	// 路由
 	r := gin.Default()
@@ -99,6 +100,7 @@ func main() {
 			protected.POST("/api-keys/:id/reset", apiKeyHandler.Reset)
 			protected.GET("/stats", sendHandler.Stats)
 			protected.GET("/send/logs", sendHandler.Logs)
+			protected.POST("/system/update", systemHandler.Update)
 		}
 
 		// 发送邮件（支持 Token 或 API Key 认证）

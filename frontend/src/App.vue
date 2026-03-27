@@ -436,6 +436,7 @@
                 <div v-if="updateStatus === 'available'" class="update-badge available">
                   新版本 {{ latestVersion }} 可用
                   <a href="https://github.com/DoBestone/smtp-lite/releases" target="_blank">→ 查看</a>
+                  <button class="one-click-update-btn" @click="doUpdate">立即更新</button>
                 </div>
                 <div v-if="updateStatus === 'error'" class="update-badge error">检测失败，请稍后重试</div>
               </div>
@@ -791,6 +792,43 @@
       </div>
     </transition>
 
+    <!-- ========== 一键更新进度弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="updateProgress" class="modal-overlay update-overlay">
+        <div class="modal-box update-modal">
+          <!-- 更新中 -->
+          <template v-if="updateProgress === 'updating'">
+            <div class="update-spinner"></div>
+            <h3 class="update-modal-title">正在更新...</h3>
+            <p class="update-modal-desc">正在拉取代码并重新编译，服务将在完成后自动重启，请稍候。</p>
+            <div class="update-steps">
+              <div class="update-step" :class="updateStep >= 1 ? 'done' : 'pending'">① git pull</div>
+              <div class="update-step" :class="updateStep >= 2 ? 'done' : 'pending'">② go build</div>
+              <div class="update-step" :class="updateStep >= 3 ? 'done' : 'pending'">③ 重启服务</div>
+            </div>
+          </template>
+          <!-- 成功 -->
+          <template v-else-if="updateProgress === 'done'">
+            <div class="update-icon-wrap success">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 class="update-modal-title">更新成功！</h3>
+            <p class="update-modal-desc">已更新至 <strong>{{ latestVersion }}</strong>，页面即将刷新。</p>
+            <button class="btn-primary" style="margin-top:16px" @click="reloadPage()">立即刷新</button>
+          </template>
+          <!-- 失败 -->
+          <template v-else-if="updateProgress === 'error' || updateProgress === 'timeout'">
+            <div class="update-icon-wrap error">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+            <h3 class="update-modal-title">{{ updateProgress === 'timeout' ? '更新超时' : '更新失败' }}</h3>
+            <p class="update-modal-desc">请检查服务器日志，确认 git 和 go 命令可用后手动重试。</p>
+            <button class="btn-ghost" style="margin-top:16px" @click="updateProgress = ''">关闭</button>
+          </template>
+        </div>
+      </div>
+    </transition>
+
     <!-- ========== Toast ========== -->
     <transition name="toast-fade">
       <div v-if="toast.show" :class="['toast', 'toast-' + toast.type]">
@@ -855,6 +893,8 @@ export default {
       latestVersion: '',
       updateStatus: '',
       updateChecking: false,
+      updateProgress: '',  // '' | 'updating' | 'done' | 'error' | 'timeout'
+      updateStep: 0,
       toast: { show: false, msg: '', type: 'success' },
       navItems: [
         { key: 'smtp', label: 'SMTP 账号', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' },
@@ -932,6 +972,39 @@ export default {
       } finally {
         this.updateChecking = false
       }
+    },
+    async doUpdate() {
+      this.updateProgress = 'updating'
+      this.updateStep = 1
+      try {
+        await axios.post(`${API}/system/update`, {}, { headers: this.getHeaders() })
+        this.updateStep = 2
+        this.pollForNewVersion()
+      } catch(e) {
+        this.updateProgress = 'error'
+      }
+    },
+    reloadPage() { window.location.reload() },
+    pollForNewVersion() {
+      const start = Date.now()
+      const timeout = 120000
+      const target = this.latestVersion
+      const poll = async () => {
+        if (Date.now() - start > timeout) { this.updateProgress = 'timeout'; return }
+        try {
+          const res = await axios.get(`${API}/version`)
+          if (res.data.version === target) {
+            this.currentVersion = target
+            this.updateStep = 3
+            this.updateProgress = 'done'
+            this.updateStatus = 'latest'
+            setTimeout(() => window.location.reload(), 3000)
+            return
+          }
+        } catch(e) { /* 服务重启中，正常 */ }
+        setTimeout(poll, 2000)
+      }
+      setTimeout(poll, 5000) // 给服务器 5 秒开始编译
     },
     switchTab(key) {
       this.tab = key
@@ -1535,6 +1608,21 @@ tbody tr:hover { background: #fafcff; }
 .update-badge.available { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 .update-badge.error { background: var(--red-50); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
 .update-badge a { color: inherit; font-weight: 700; }
+.one-click-update-btn { margin-left: 4px; padding: 2px 10px; font-size: 0.72rem; font-weight: 700; border: none; border-radius: 10px; background: #c2410c; color: white; cursor: pointer; transition: background 0.15s; }
+.one-click-update-btn:hover { background: #9a3412; }
+/* ---- update modal ---- */
+.update-overlay { background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+.update-modal { max-width: 420px; text-align: center; padding: 40px 32px; }
+.update-spinner { width: 48px; height: 48px; border: 3px solid var(--gray-200); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.update-modal-title { font-size: 1.2rem; font-weight: 700; color: var(--gray-900); margin: 0 0 8px; }
+.update-modal-desc { font-size: 0.875rem; color: var(--gray-500); margin: 0; line-height: 1.6; }
+.update-steps { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.update-step { padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; border: 1.5px solid var(--gray-200); color: var(--gray-400); transition: all 0.3s; }
+.update-step.done { border-color: var(--green); color: var(--green); background: var(--green-50); }
+.update-icon-wrap { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+.update-icon-wrap.success { background: var(--green-50); color: var(--green); }
+.update-icon-wrap.error { background: var(--red-50); color: var(--red); }
 
 /* Transitions */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
