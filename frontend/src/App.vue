@@ -421,9 +421,23 @@
                 <h1 class="section-title">API 对接文档</h1>
                 <p class="section-desc">HTTP API 接口参考与多语言 SDK 示例</p>
               </div>
-              <div class="base-url-pill">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10A15.3 15.3 0 018 12a15.3 15.3 0 014-10z" stroke="currentColor" stroke-width="1.8"/></svg>
-                Base URL: <code>{{ baseUrl }}</code>
+              <div class="doc-head-right">
+                <div class="base-url-pill">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10A15.3 15.3 0 018 12a15.3 15.3 0 014-10z" stroke="currentColor" stroke-width="1.8"/></svg>
+                  Base URL: <code>{{ baseUrl }}</code>
+                </div>
+                <div class="version-pill">
+                  <span class="version-tag">{{ currentVersion || '...' }}</span>
+                  <button class="check-update-btn" @click="checkUpdate" :disabled="updateChecking">
+                    {{ updateChecking ? '检测中…' : '检测更新' }}
+                  </button>
+                </div>
+                <div v-if="updateStatus === 'latest'" class="update-badge latest">✓ 已是最新版本</div>
+                <div v-if="updateStatus === 'available'" class="update-badge available">
+                  新版本 {{ latestVersion }} 可用
+                  <a href="https://github.com/DoBestone/smtp-lite/releases" target="_blank">→ 查看</a>
+                </div>
+                <div v-if="updateStatus === 'error'" class="update-badge error">检测失败，请稍后重试</div>
               </div>
             </div>
 
@@ -438,11 +452,17 @@
                   <p class="doc-desc">使用用户名密码获取 JWT Token，用于管理界面 API 调用。</p>
                   <div class="code-block-wrap">
                     <div class="code-block-label">请求示例</div>
-                    <pre class="code-block" v-text="curlLogin"></pre>
+                    <div class="copy-wrap">
+                      <pre class="code-block" v-text="curlLogin"></pre>
+                      <button class="copy-btn" :class="{copied: copiedKey==='curlLogin'}" @click="copyText(curlLogin,'curlLogin')">{{ copiedKey==='curlLogin' ? '✓ 已复制' : '复制' }}</button>
+                    </div>
                   </div>
                   <div class="code-block-wrap">
                     <div class="code-block-label">响应示例</div>
-                    <pre class="code-block">{ "token": "eyJhbGciOiJIUzI1NiIsInR5...", "username": "admin" }</pre>
+                    <div class="copy-wrap">
+                      <pre class="code-block">{ "token": "eyJhbGciOiJIUzI1NiIsInR5...", "username": "admin" }</pre>
+                      <button class="copy-btn" :class="{copied: copiedKey==='respLogin'}" @click="copyText('{ \"token\": \"eyJhbGciOiJIUzI1NiIsInR5...\", \"username\": \"admin\" }','respLogin')">{{ copiedKey==='respLogin' ? '✓ 已复制' : '复制' }}</button>
+                    </div>
                   </div>
                 </div>
                 <div class="doc-card">
@@ -454,7 +474,10 @@
                   <p class="doc-desc">修改登录密码，修改成功后需要重新登录。</p>
                   <div class="code-block-wrap">
                     <div class="code-block-label">请求示例</div>
-                    <pre class="code-block" v-text="curlChangePassword"></pre>
+                    <div class="copy-wrap">
+                      <pre class="code-block" v-text="curlChangePassword"></pre>
+                      <button class="copy-btn" :class="{copied: copiedKey==='curlChangePwd'}" @click="copyText(curlChangePassword,'curlChangePwd')">{{ copiedKey==='curlChangePwd' ? '✓ 已复制' : '复制' }}</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -472,11 +495,17 @@
                 <div class="doc-grid-2">
                   <div class="code-block-wrap">
                     <div class="code-block-label">使用 API Key（推荐）</div>
-                    <pre class="code-block" v-text="curlSendApiKey"></pre>
+                    <div class="copy-wrap">
+                      <pre class="code-block" v-text="curlSendApiKey"></pre>
+                      <button class="copy-btn" :class="{copied: copiedKey==='curlSendKey'}" @click="copyText(curlSendApiKey,'curlSendKey')">{{ copiedKey==='curlSendKey' ? '✓ 已复制' : '复制' }}</button>
+                    </div>
                   </div>
                   <div class="code-block-wrap">
                     <div class="code-block-label">发送 HTML 邮件</div>
-                    <pre class="code-block" v-text="curlSendHtml"></pre>
+                    <div class="copy-wrap">
+                      <pre class="code-block" v-text="curlSendHtml"></pre>
+                      <button class="copy-btn" :class="{copied: copiedKey==='curlSendHtml'}" @click="copyText(curlSendHtml,'curlSendHtml')">{{ copiedKey==='curlSendHtml' ? '✓ 已复制' : '复制' }}</button>
+                    </div>
                   </div>
                 </div>
                 <div class="params-table-wrap">
@@ -496,7 +525,10 @@
                 </div>
                 <div class="code-block-wrap">
                   <div class="code-block-label">成功响应</div>
-                  <pre class="code-block">{ "success": true, "message": "Email sent successfully", "used_smtp": "user***@gmail.com" }</pre>
+                  <div class="copy-wrap">
+                    <pre class="code-block">{ "success": true, "message": "Email sent successfully", "used_smtp": "user***@gmail.com" }</pre>
+                    <button class="copy-btn" :class="{copied: copiedKey==='respSend'}" @click="copyText('{ \"success\": true, \"message\": \"Email sent successfully\", \"used_smtp\": \"user***@gmail.com\" }','respSend')">{{ copiedKey==='respSend' ? '✓ 已复制' : '复制' }}</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -510,10 +542,13 @@
                 <button :class="['tab-simple', { active: codeTab === 'go' }]" @click="codeTab = 'go'">Go</button>
               </div>
               <div class="code-block-wrap">
-                <pre v-if="codeTab === 'python'" class="code-block" v-text="codeExamplePython"></pre>
-                <pre v-if="codeTab === 'nodejs'" class="code-block" v-text="codeExampleNodejs"></pre>
-                <pre v-if="codeTab === 'php'" class="code-block" v-text="codeExamplePhp"></pre>
-                <pre v-if="codeTab === 'go'" class="code-block" v-text="codeExampleGo"></pre>
+                <div class="copy-wrap">
+                  <pre v-if="codeTab === 'python'" class="code-block" v-text="codeExamplePython"></pre>
+                  <pre v-if="codeTab === 'nodejs'" class="code-block" v-text="codeExampleNodejs"></pre>
+                  <pre v-if="codeTab === 'php'" class="code-block" v-text="codeExamplePhp"></pre>
+                  <pre v-if="codeTab === 'go'" class="code-block" v-text="codeExampleGo"></pre>
+                  <button class="copy-btn" :class="{copied: copiedKey==='codeExample'}" @click="copyText(currentCodeExample,'codeExample')">{{ copiedKey==='codeExample' ? '✓ 已复制' : '复制' }}</button>
+                </div>
               </div>
             </div>
 
@@ -542,7 +577,7 @@
             <div class="doc-section">
               <div class="doc-section-title"><span class="doc-num">06</span> 日志与统计 <span class="doc-auth-note">（需要 Bearer Token）</span></div>
               <div class="doc-list">
-                <div class="doc-list-item"><span class="method-tag get">GET</span><code class="path-tag">/api/v1/logs?page=1&amp;page_size=50</code><span class="doc-list-desc">分页获取发送日志，响应含 logs、total、page</span></div>
+                <div class="doc-list-item"><span class="method-tag get">GET</span><code class="path-tag">/api/v1/send/logs?page=1&amp;page_size=50</code><span class="doc-list-desc">分页获取发送日志，响应含 logs、total、page</span></div>
                 <div class="doc-list-item"><span class="method-tag get">GET</span><code class="path-tag">/api/v1/stats</code><span class="doc-list-desc">统计数据：total_sent、success、failed、today_sent、success_rate</span></div>
               </div>
             </div>
@@ -815,6 +850,11 @@ export default {
       pwdSuccess: '',
       pwdLoading: false,
       codeTab: 'python',
+      copiedKey: '',
+      currentVersion: '',
+      latestVersion: '',
+      updateStatus: '',
+      updateChecking: false,
       toast: { show: false, msg: '', type: 'success' },
       navItems: [
         { key: 'smtp', label: 'SMTP 账号', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' },
@@ -857,17 +897,48 @@ export default {
     codeExampleGo() {
       return `package main\n\nimport (\n    "bytes"; "encoding/json"; "fmt"; "net/http"\n)\n\nfunc sendEmail(to, subject, body string) {\n    payload, _ := json.Marshal(map[string]interface{}{\n        "to": to, "subject": subject, "body": body,\n    })\n    req, _ := http.NewRequest("POST", "${this.baseUrl}/api/v1/send", bytes.NewReader(payload))\n    req.Header.Set("Content-Type", "application/json")\n    req.Header.Set("X-API-Key", "smtp_xxxxxxxxxxxx")\n    resp, _ := http.DefaultClient.Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}\n\nfunc main() { sendEmail("user@example.com", "验证码", "您的验证码是：123456") }`
     },
+    currentCodeExample() {
+      const map = { python: this.codeExamplePython, nodejs: this.codeExampleNodejs, php: this.codeExamplePhp, go: this.codeExampleGo }
+      return map[this.codeTab] || ''
+    },
   },
   methods: {
     showToast(msg, type = 'success') {
       this.toast = { show: true, msg, type }
       setTimeout(() => { this.toast.show = false }, 3000)
     },
+    copyText(text, key) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.copiedKey = key
+        setTimeout(() => { this.copiedKey = '' }, 2000)
+      })
+    },
+    async loadVersion() {
+      try {
+        const res = await axios.get(`${API}/version`)
+        this.currentVersion = res.data.version
+      } catch(e) {}
+    },
+    async checkUpdate() {
+      if (!this.currentVersion) await this.loadVersion()
+      this.updateChecking = true
+      this.updateStatus = ''
+      try {
+        const res = await axios.get('https://api.github.com/repos/DoBestone/smtp-lite/releases/latest')
+        this.latestVersion = res.data.tag_name
+        this.updateStatus = this.latestVersion === this.currentVersion ? 'latest' : 'available'
+      } catch(e) {
+        this.updateStatus = 'error'
+      } finally {
+        this.updateChecking = false
+      }
+    },
     switchTab(key) {
       this.tab = key
       if (key === 'logs') this.loadLogs()
       if (key === 'stats') this.loadStats()
       if (key === 'smtp') this.loadSmtpAccounts()
+      if (key === 'docs' && !this.currentVersion) this.loadVersion()
     },
     async login() {
       this.loginLoading = true; this.loginError = ''
@@ -1447,6 +1518,23 @@ tbody tr:hover { background: #fafcff; }
 .tab-simple { padding: 5px 14px; border: 1.5px solid var(--gray-200); background: white; color: var(--gray-500); border-radius: 6px; font-size: 0.8125rem; font-weight: 500; transition: border-color 0.15s, color 0.15s, background 0.15s; }
 .tab-simple.active { border-color: var(--blue); color: var(--blue); background: var(--blue-50); }
 .tab-simple:hover:not(.active) { border-color: var(--gray-300); color: var(--gray-700); }
+/* ---- copy button ---- */
+.copy-wrap { position: relative; }
+.copy-btn { position: absolute; top: 8px; right: 8px; padding: 3px 10px; font-size: 0.72rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); cursor: pointer; transition: background 0.15s, color 0.15s; letter-spacing: 0.02em; }
+.copy-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.copy-btn.copied { background: rgba(34,197,94,0.25); color: #4ade80; border-color: rgba(74,222,128,0.3); }
+/* ---- version / update ---- */
+.doc-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.version-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; color: var(--gray-600); }
+.version-tag { font-weight: 700; color: var(--gray-800); font-family: 'SF Mono','Fira Code',monospace; }
+.check-update-btn { padding: 2px 10px; font-size: 0.72rem; font-weight: 600; border: 1px solid var(--gray-300); border-radius: 12px; background: white; color: var(--gray-600); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+.check-update-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+.check-update-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.update-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+.update-badge.latest { background: var(--green-50); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.update-badge.available { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.update-badge.error { background: var(--red-50); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+.update-badge a { color: inherit; font-weight: 700; }
 
 /* Transitions */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }

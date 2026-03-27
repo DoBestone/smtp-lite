@@ -8,6 +8,7 @@ import (
 	"smtp-lite/internal/middleware"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
+	"smtp-lite/internal/version"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
@@ -67,6 +68,11 @@ func main() {
 	// API 路由
 	api := r.Group("/api/v1")
 	{
+		// 版本（公开）
+		api.GET("/version", func(c *gin.Context) {
+			c.JSON(200, gin.H{"version": version.Version})
+		})
+
 		// 认证
 		api.POST("/auth/login", authHandler.Login)
 
