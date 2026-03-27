@@ -198,6 +198,79 @@
             </div>
           </section>
 
+          <!-- ===== 发送邮件 ===== -->
+          <section v-if="tab === 'send'" class="section">
+            <div class="section-head">
+              <div>
+                <h1 class="section-title">发送邮件</h1>
+                <p class="section-desc">在线发送邮件，支持单发、批量发送、定时发送</p>
+              </div>
+              <div style="display:flex;gap:8px">
+                <select v-model="sendMode" class="form-select" @change="resetSendForm">
+                  <option value="single">单封发送</option>
+                  <option value="batch">批量发送</option>
+                  <option value="scheduled">定时发送</option>
+                </select>
+              </div>
+            </div>
+            <div class="card">
+              <form @submit.prevent="doSendEmail">
+                <!-- 单发/定时发送的收件人 -->
+                <div v-if="sendMode !== 'batch'" class="field">
+                  <label>收件人 <span class="required">*</span></label>
+                  <input v-model="sendForm.to" type="email" placeholder="recipient@example.com" required />
+                </div>
+                <!-- 批量发送的收件人列表 -->
+                <div v-if="sendMode === 'batch'" class="field">
+                  <label>收件人列表 <span class="required">*</span></label>
+                  <textarea v-model="batchEmailsList" rows="5" placeholder="每行一个邮箱地址&#10;user1@example.com&#10;user2@example.com" required></textarea>
+                  <p class="field-hint">每行一个邮箱地址，或从收件人分组中选择</p>
+                </div>
+                <!-- 定时发送时间 -->
+                <div v-if="sendMode === 'scheduled'" class="field">
+                  <label>发送时间 <span class="required">*</span></label>
+                  <input v-model="scheduledTime" type="datetime-local" required />
+                </div>
+                <div class="field"><label>邮件主题 <span class="required">*</span></label><input v-model="sendForm.subject" required /></div>
+                <div class="field">
+                  <label>邮件内容 <span class="required">*</span></label>
+                  <textarea v-model="sendForm.body" rows="8" placeholder="邮件正文..." required></textarea>
+                  <div class="field-actions">
+                    <label class="checkbox-label"><input type="checkbox" v-model="sendForm.is_html" /> HTML 格式</label>
+                    <label v-if="sendForm.is_html" class="checkbox-label" style="margin-left:16px"><input type="checkbox" v-model="sendForm.track_enabled" /> 启用追踪</label>
+                  </div>
+                </div>
+                <div class="field-row">
+                  <div class="field"><label>发件人名称</label><input v-model="sendForm.from_name" placeholder="显示名称（可选）" /></div>
+                  <div v-if="sendMode === 'single'" class="field"><label>抄送</label><input v-model="sendForm.cc" placeholder="多人用逗号分隔" /></div>
+                </div>
+                <div v-if="sendMode === 'single'" class="field"><label>密送</label><input v-model="sendForm.bcc" placeholder="多人用逗号分隔" /></div>
+                <!-- 发送结果 -->
+                <div v-if="sendResult" class="alert" :class="sendResult.success ? 'alert-success' : 'alert-error'">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path v-if="sendResult.success" d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <template v-else><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></template>
+                  </svg>
+                  {{ sendResult.message }}
+                </div>
+                <div class="modal-actions" style="margin-top:20px">
+                  <button type="button" class="btn-ghost" @click="resetSendForm">清空</button>
+                  <button type="submit" class="btn-primary" :disabled="sendLoading">
+                    <span v-if="!sendLoading">{{ sendMode === 'single' ? '立即发送' : sendMode === 'batch' ? '批量发送' : '定时发送' }}</span>
+                    <span v-else class="spinner"></span>
+                  </button>
+                </div>
+              </form>
+            </div>
+            <!-- 快速选择模板 -->
+            <div v-if="templates.length > 0" class="card mt-16">
+              <div class="card-head">快速选择模板</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <button v-for="t in templates" :key="t.id" class="btn-outline btn-sm" @click="applyTemplate(t)">{{ t.name }}</button>
+              </div>
+            </div>
+          </section>
+
           <!-- ===== API Key ===== -->
           <section v-if="tab === 'keys'" class="section">
             <div class="section-head">
@@ -1217,8 +1290,25 @@ export default {
       blacklistForm: { email: '', reason: '' },
       // 队列状态
       queueStats: {},
+      // 发送邮件
+      sendMode: 'single', // single / batch / scheduled
+      sendForm: {
+        to: '',
+        subject: '',
+        body: '',
+        is_html: false,
+        from_name: '',
+        cc: '',
+        bcc: '',
+        track_enabled: false,
+      },
+      batchEmailsList: '',
+      scheduledTime: '',
+      sendLoading: false,
+      sendResult: null,
       navItems: [
         { key: 'smtp', label: 'SMTP 账号', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' },
+        { key: 'send', label: '发送邮件', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
         { key: 'keys', label: 'API Key', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' },
         { key: 'templates', label: '模板', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/></svg>' },
         { key: 'recipients', label: '收件人', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="1.5"/></svg>' },
@@ -1744,6 +1834,62 @@ export default {
         const res = await axios.get(`${API}/queue/stats`, { headers: this.getHeaders() })
         this.queueStats = res.data
       } catch(e) { console.error('加载队列状态失败', e) }
+    },
+    // ===== 发送邮件 =====
+    resetSendForm() {
+      this.sendForm = { to: '', subject: '', body: '', is_html: false, from_name: '', cc: '', bcc: '', track_enabled: false }
+      this.batchEmailsList = ''
+      this.scheduledTime = ''
+      this.sendResult = null
+    },
+    async doSendEmail() {
+      this.sendLoading = true
+      this.sendResult = null
+      try {
+        if (this.sendMode === 'single') {
+          const data = { ...this.sendForm }
+          if (this.sendForm.cc) data.cc = this.sendForm.cc.split(',').map(e => e.trim()).filter(Boolean)
+          if (this.sendForm.bcc) data.bcc = this.sendForm.bcc.split(',').map(e => e.trim()).filter(Boolean)
+          const res = await axios.post(`${API}/send`, data, { headers: this.getHeaders() })
+          this.sendResult = res.data
+        } else if (this.sendMode === 'batch') {
+          const emails = this.batchEmailsList.split('\n').map(e => e.trim()).filter(Boolean)
+          const res = await axios.post(`${API}/send/batch`, {
+            name: `批量发送 ${new Date().toLocaleString()}`,
+            emails,
+            subject: this.sendForm.subject,
+            body: this.sendForm.body,
+            is_html: this.sendForm.is_html,
+            from_name: this.sendForm.from_name,
+          }, { headers: this.getHeaders() })
+          this.sendResult = { success: true, message: `已加入队列，共 ${emails.length} 封`, batch_id: res.data.id }
+        } else if (this.sendMode === 'scheduled') {
+          const res = await axios.post(`${API}/send/scheduled`, {
+            to: this.sendForm.to,
+            subject: this.sendForm.subject,
+            body: this.sendForm.body,
+            is_html: this.sendForm.is_html,
+            from_name: this.sendForm.from_name,
+            scheduled_at: this.scheduledTime,
+          }, { headers: this.getHeaders() })
+          this.sendResult = { success: true, message: `已加入定时队列`, scheduled_at: this.scheduledTime }
+        }
+        if (this.sendResult?.success) {
+          this.showToast(this.sendResult.message)
+          this.loadStats()
+        }
+      } catch(e) {
+        this.sendResult = { success: false, message: e.response?.data?.error || '发送失败' }
+      } finally {
+        this.sendLoading = false
+      }
+    },
+    applyTemplate(t) {
+      this.sendForm.subject = t.subject || ''
+      this.sendForm.body = t.body || ''
+      this.sendForm.is_html = t.is_html || false
+      this.tab = 'send'
+      this.showToast('已应用模板')
     }
   }
 }
@@ -1944,6 +2090,18 @@ button { cursor: pointer; }
 .field input:focus, .modal-box input:focus {
   border-color: var(--blue-l); box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
+.field-hint { font-size: 0.75rem; color: var(--gray-400); margin-top: 4px; }
+.field-actions { display: flex; align-items: center; margin-top: 8px; }
+.form-select {
+  padding: 8px 12px; border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius); background: white;
+  font-size: 0.875rem; color: var(--gray-700);
+  cursor: pointer; outline: none;
+}
+.form-select:focus { border-color: var(--blue-l); }
+.btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .input-with-presets { display: flex; flex-direction: column; gap: 6px; }
 .preset-btns { display: flex; gap: 6px; flex-wrap: wrap; }
