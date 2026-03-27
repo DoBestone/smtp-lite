@@ -462,7 +462,7 @@
                     <div class="code-block-label">响应示例</div>
                     <div class="copy-wrap">
                       <pre class="code-block">{ "token": "eyJhbGciOiJIUzI1NiIsInR5...", "username": "admin" }</pre>
-                      <button class="copy-btn" :class="{copied: copiedKey==='respLogin'}" @click="copyText('{ \"token\": \"eyJhbGciOiJIUzI1NiIsInR5...\", \"username\": \"admin\" }','respLogin')">{{ copiedKey==='respLogin' ? '✓ 已复制' : '复制' }}</button>
+                      <button class="copy-btn" :class="{copied: copiedKey==='respLogin'}" @click="copyText('{ &quot;token&quot;: &quot;eyJhbGciOiJIUzI1NiIsInR5...&quot;, &quot;username&quot;: &quot;admin&quot; }','respLogin')">{{ copiedKey==='respLogin' ? '✓ 已复制' : '复制' }}</button>
                     </div>
                   </div>
                 </div>
@@ -528,7 +528,7 @@
                   <div class="code-block-label">成功响应</div>
                   <div class="copy-wrap">
                     <pre class="code-block">{ "success": true, "message": "Email sent successfully", "used_smtp": "user***@gmail.com" }</pre>
-                    <button class="copy-btn" :class="{copied: copiedKey==='respSend'}" @click="copyText('{ \"success\": true, \"message\": \"Email sent successfully\", \"used_smtp\": \"user***@gmail.com\" }','respSend')">{{ copiedKey==='respSend' ? '✓ 已复制' : '复制' }}</button>
+                    <button class="copy-btn" :class="{copied: copiedKey==='respSend'}" @click="copyText('{ &quot;success&quot;: true, &quot;message&quot;: &quot;Email sent successfully&quot;, &quot;used_smtp&quot;: &quot;user***@gmail.com&quot; }','respSend')">{{ copiedKey==='respSend' ? '✓ 已复制' : '复制' }}</button>
                   </div>
                 </div>
               </div>
