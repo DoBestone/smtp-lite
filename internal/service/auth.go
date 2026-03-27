@@ -45,6 +45,18 @@ func (s *AuthService) Login(username, password string) (string, error) {
 	return token.SignedString([]byte(cfg.JWT.Secret))
 }
 
+// ChangePassword 修改登录密码
+func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
+	cfg := config.Get()
+	if oldPassword != cfg.Auth.Password {
+		return errors.New("旧密码不正确")
+	}
+	if len(newPassword) < 6 {
+		return errors.New("新密码至少需要 6 位字符")
+	}
+	return config.UpdateAuthPassword(newPassword)
+}
+
 func (s *AuthService) ValidateToken(tokenString string) (*Claims, error) {
 	cfg := config.Get()
 

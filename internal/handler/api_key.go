@@ -68,3 +68,27 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 
 	c.JSON(200, gin.H{"message": "Deleted"})
 }
+
+func (h *APIKeyHandler) Reset(c *gin.Context) {
+	id := c.Param("id")
+
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	key, fullKey, err := h.apiKeyService.Reset(uid)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"id":         key.ID,
+		"name":       key.Name,
+		"key":        fullKey,
+		"key_prefix": key.KeyPrefix,
+		"warning":    "Save this key! It won't be shown again.",
+	})
+}

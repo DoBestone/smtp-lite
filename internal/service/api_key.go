@@ -55,6 +55,32 @@ func (s *APIKeyService) Delete(id uuid.UUID) error {
 	return s.db.Delete(&model.APIKey{}, id).Error
 }
 
+func (s *APIKeyService) Reset(id uuid.UUID) (*model.APIKey, string, error) {
+	var key model.APIKey
+	if err := s.db.First(&key, id).Error; err != nil {
+		return nil, "", err
+	}
+
+	// 生成新 Key
+	keyBytes := make([]byte, 24)
+	if _, err := rand.Read(keyBytes); err != nil {
+		return nil, "", err
+	}
+	fullKey := "sk_" + hex.EncodeToString(keyBytes)
+
+	hash := sha3.Sum256([]byte(fullKey))
+	keyHash := hex.EncodeToString(hash[:])
+
+	if err := s.db.Model(&key).Updates(map[string]interface{}{
+		"key_hash":   keyHash,
+		"key_prefix": fullKey[:8],
+	}).Error; err != nil {
+		return nil, "", err
+	}
+
+	return &key, fullKey, nil
+}
+
 func (s *APIKeyService) Validate(keyString string) bool {
 	hash := sha3.Sum256([]byte(keyString))
 	keyHash := hex.EncodeToString(hash[:])

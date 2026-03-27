@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -81,34 +82,71 @@ func (s *SmtpService) Toggle(id uuid.UUID) error {
 func (s *SmtpService) TestConnection(host string, port int, email, password string) error {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	auth := smtp.PlainAuth("", email, password, host)
-	return smtp.SendMail(addr, auth, email, []string{email}, []byte("Test connection"))
+	var client *smtp.Client
+	var err error
+	if port == 465 {
+		conn, e := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+		if e != nil {
+			return e
+		}
+		client, err = smtp.NewClient(conn, host)
+	} else {
+		client, err = smtp.Dial(addr)
+		if err == nil {
+			if ok, _ := client.Extension("STARTTLS"); ok {
+				err = client.StartTLS(&tls.Config{ServerName: host})
+			}
+		}
+	}
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Auth(auth)
 }
 
 func (s *SmtpService) GetAvailableAccount() (*model.SmtpAccount, error) {
+	return s.GetAvailableAccountExcluding(nil)
+}
+
+// GetAvailableAccountExcluding 获取可用账号，排除指定 ID 列表（用于自动故障切换）
+func (s *SmtpService) GetAvailableAccountExcluding(excludeIDs []uuid.UUID) (*model.SmtpAccount, error) {
 	var account model.SmtpAccount
 	today := time.Now().Format("2006-01-02")
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// 查找可用的、未超限的账号
-		err := tx.Where("status = ? AND (daily_limit = 0 OR daily_used < daily_limit) AND (date(last_reset_date) = ? OR last_reset_date IS NULL)", "active", today).
-			First(&account).Error
-		if err != nil {
+		query := tx.Where("status = ?", "active")
+		if len(excludeIDs) > 0 {
+			query = query.Where("id NOT IN ?", excludeIDs)
+		}
+
+		// 查找所有活跃账号，包括昨天未重置的（重置后即可用）
+		var accounts []model.SmtpAccount
+		if err := query.Find(&accounts).Error; err != nil {
 			return err
 		}
 
-		// 如果是新的一天，重置计数
-		if account.LastResetDate.Format("2006-01-02") != today {
-			err = tx.Model(&account).Updates(map[string]interface{}{
-				"daily_used":      0,
-				"last_reset_date": today,
-			}).Error
-			if err != nil {
-				return err
+		// 筛选可用账号：未超限或需要重置的
+		for i := range accounts {
+			a := &accounts[i]
+			needsReset := a.LastResetDate.Format("2006-01-02") != today
+			if needsReset {
+				// 新的一天，重置计数
+				if err := tx.Model(a).Updates(map[string]interface{}{
+					"daily_used":      0,
+					"last_reset_date": today,
+				}).Error; err != nil {
+					return err
+				}
+				a.DailyUsed = 0
 			}
-			account.DailyUsed = 0
+			if a.DailyLimit == 0 || a.DailyUsed < a.DailyLimit {
+				account = *a
+				return nil
+			}
 		}
 
-		return nil
+		return errors.New("no available SMTP account")
 	})
 
 	return &account, err
@@ -189,4 +227,70 @@ func decryptPassword(encrypted string) (string, error) {
 
 func (s *SmtpService) DecryptAccountPassword(account *model.SmtpAccount) (string, error) {
 	return decryptPassword(account.PasswordEncrypted)
+}
+
+// TestSend 通过指定账号发送测试邮件到指定地址
+func (s *SmtpService) TestSend(account *model.SmtpAccount, to string) error {
+	password, err := s.DecryptAccountPassword(account)
+	if err != nil {
+		return fmt.Errorf("解密密码失败: %v", err)
+	}
+	subject := "SMTP Lite - 连通性测试邮件"
+	body := fmt.Sprintf(
+		"这是来自 SMTP Lite 的测试邮件。\n\n发件账号: %s\nSMTP 服务器: %s:%d\n\n如收到此邮件，说明您的 SMTP 配置正确。",
+		account.Email, account.SmtpHost, account.SmtpPort,
+	)
+	msg := fmt.Sprintf(
+		"From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+		account.Email, to, subject, body,
+	)
+	auth := smtp.PlainAuth("", account.Email, password, account.SmtpHost)
+	return sendMailAuto(account.SmtpHost, account.SmtpPort, auth, account.Email, []string{to}, []byte(msg))
+}
+
+// sendMailAuto 同时支持隐式 TLS（端口 465）和 STARTTLS（端口 587 等）
+func sendMailAuto(host string, port int, auth smtp.Auth, from string, to []string, msg []byte) error {
+	addr := fmt.Sprintf("%s:%d", host, port)
+	var client *smtp.Client
+	var err error
+	if port == 465 {
+		conn, e := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+		if e != nil {
+			return e
+		}
+		client, err = smtp.NewClient(conn, host)
+	} else {
+		client, err = smtp.Dial(addr)
+		if err == nil {
+			if ok, _ := client.Extension("STARTTLS"); ok {
+				err = client.StartTLS(&tls.Config{ServerName: host})
+			}
+		}
+	}
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	if err = client.Auth(auth); err != nil {
+		return err
+	}
+	if err = client.Mail(from); err != nil {
+		return err
+	}
+	for _, addr := range to {
+		if err = client.Rcpt(addr); err != nil {
+			return err
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(msg); err != nil {
+		return err
+	}
+	if err = w.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }

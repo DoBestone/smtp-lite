@@ -32,11 +32,11 @@ func (h *SmtpHandler) List(c *gin.Context) {
 }
 
 type CreateSmtpRequest struct {
-	Email     string `json:"email" binding:"required,email"`
-	Password  string `json:"password" binding:"required"`
-	SmtpHost  string `json:"smtp_host" binding:"required"`
-	SmtpPort  int    `json:"smtp_port"`
-	DailyLimit int   `json:"daily_limit"`
+	Email      string `json:"email" binding:"required,email"`
+	Password   string `json:"password" binding:"required"`
+	SmtpHost   string `json:"smtp_host" binding:"required"`
+	SmtpPort   int    `json:"smtp_port"`
+	DailyLimit int    `json:"daily_limit"`
 }
 
 func (h *SmtpHandler) Create(c *gin.Context) {
@@ -51,11 +51,11 @@ func (h *SmtpHandler) Create(c *gin.Context) {
 	}
 
 	account := &model.SmtpAccount{
-		Email:            req.Email,
+		Email:             req.Email,
 		PasswordEncrypted: req.Password,
-		SmtpHost:         req.SmtpHost,
-		SmtpPort:         req.SmtpPort,
-		DailyLimit:       req.DailyLimit,
+		SmtpHost:          req.SmtpHost,
+		SmtpPort:          req.SmtpPort,
+		DailyLimit:        req.DailyLimit,
 	}
 
 	if err := h.smtpService.Create(account); err != nil {
@@ -68,12 +68,12 @@ func (h *SmtpHandler) Create(c *gin.Context) {
 }
 
 type UpdateSmtpRequest struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	SmtpHost    string `json:"smtp_host"`
-	SmtpPort    int    `json:"smtp_port"`
-	DailyLimit  int    `json:"daily_limit"`
-	Status      string `json:"status"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	SmtpHost   string `json:"smtp_host"`
+	SmtpPort   int    `json:"smtp_port"`
+	DailyLimit int    `json:"daily_limit"`
+	Status     string `json:"status"`
 }
 
 func (h *SmtpHandler) Update(c *gin.Context) {
@@ -157,6 +157,33 @@ func (h *SmtpHandler) Toggle(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"message": "Toggled"})
+}
+
+type TestSendRequest struct {
+	To string `json:"to" binding:"required,email"`
+}
+
+func (h *SmtpHandler) TestSend(c *gin.Context) {
+	id := c.Param("id")
+
+	var req TestSendRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "请提供有效的收件邮箱地址"})
+		return
+	}
+
+	account, err := h.smtpService.GetByID(parseUUID(id))
+	if err != nil {
+		c.JSON(404, gin.H{"error": "账号不存在"})
+		return
+	}
+
+	if err := h.smtpService.TestSend(account, req.To); err != nil {
+		c.JSON(400, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"success": true, "message": "测试邮件已发送，请检查收件箱"})
 }
 
 func parseUUID(s string) uuid.UUID {

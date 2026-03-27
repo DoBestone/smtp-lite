@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Auth      AuthConfig      `yaml:"auth"`
-	JWT       JWTConfig       `yaml:"jwt"`
+	Server     ServerConfig     `yaml:"server"`
+	Auth       AuthConfig       `yaml:"auth"`
+	JWT        JWTConfig        `yaml:"jwt"`
 	Encryption EncryptionConfig `yaml:"encryption"`
 }
 
@@ -36,6 +36,7 @@ type EncryptionConfig struct {
 var (
 	cfg  *Config
 	once sync.Once
+	mu   sync.Mutex
 )
 
 // Load 加载配置文件
@@ -96,4 +97,19 @@ func Get() *Config {
 		return Load()
 	}
 	return cfg
+}
+
+// UpdateAuthPassword 更新登录密码并持久化到 config.yaml
+func UpdateAuthPassword(newPassword string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if cfg == nil {
+		Load()
+	}
+	cfg.Auth.Password = newPassword
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile("config.yaml", data, 0600)
 }

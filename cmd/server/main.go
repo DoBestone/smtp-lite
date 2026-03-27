@@ -74,22 +74,25 @@ func main() {
 		protected := api.Group("")
 		protected.Use(middleware.AuthRequired())
 		{
+			// 修改密码
+			protected.POST("/auth/change-password", authHandler.ChangePassword)
+
 			// SMTP 账号
 			protected.GET("/smtp-accounts", smtpHandler.List)
 			protected.POST("/smtp-accounts", smtpHandler.Create)
 			protected.PUT("/smtp-accounts/:id", smtpHandler.Update)
 			protected.DELETE("/smtp-accounts/:id", smtpHandler.Delete)
 			protected.POST("/smtp-accounts/:id/test", smtpHandler.Test)
+			protected.POST("/smtp-accounts/:id/test-send", smtpHandler.TestSend)
 			protected.POST("/smtp-accounts/:id/toggle", smtpHandler.Toggle)
 
 			// API Key
 			protected.GET("/api-keys", apiKeyHandler.List)
 			protected.POST("/api-keys", apiKeyHandler.Create)
 			protected.DELETE("/api-keys/:id", apiKeyHandler.Delete)
-
-			// 发送日志和统计
-			protected.GET("/logs", sendHandler.Logs)
+			protected.POST("/api-keys/:id/reset", apiKeyHandler.Reset)
 			protected.GET("/stats", sendHandler.Stats)
+			protected.GET("/send/logs", sendHandler.Logs)
 		}
 
 		// 发送邮件（支持 Token 或 API Key 认证）

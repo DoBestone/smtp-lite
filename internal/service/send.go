@@ -8,6 +8,7 @@ import (
 
 	"smtp-lite/internal/model"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -21,11 +22,13 @@ func NewSendService(db *gorm.DB, smtpService *SmtpService) *SendService {
 }
 
 type SendRequest struct {
-	To       string `json:"to" binding:"required,email"`
-	Subject  string `json:"subject" binding:"required"`
-	Body     string `json:"body" binding:"required"`
-	FromName string `json:"from_name"`
-	IsHTML   bool   `json:"is_html"`
+	To       string   `json:"to" binding:"required,email"`
+	CC       []string `json:"cc"`
+	BCC      []string `json:"bcc"`
+	Subject  string   `json:"subject" binding:"required"`
+	Body     string   `json:"body" binding:"required"`
+	FromName string   `json:"from_name"`
+	IsHTML   bool     `json:"is_html"`
 }
 
 type SendResponse struct {
@@ -35,49 +38,58 @@ type SendResponse struct {
 }
 
 func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
-	// 获取可用的 SMTP 账号
-	account, err := s.smtpService.GetAvailableAccount()
-	if err != nil {
-		return &SendResponse{Success: false, Message: "No available SMTP account"}, nil
-	}
+	const maxRetries = 3
+	var triedIDs []uuid.UUID
 
-	// 解密密码
-	password, err := s.smtpService.DecryptAccountPassword(account)
-	if err != nil {
-		return &SendResponse{Success: false, Message: "Failed to decrypt password"}, nil
-	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// 获取可用的 SMTP 账号（排除已失败的）
+		account, err := s.smtpService.GetAvailableAccountExcluding(triedIDs)
+		if err != nil {
+			break
+		}
 
-	// 构建邮件
-	from := account.Email
-	if req.FromName != "" {
-		from = fmt.Sprintf("%s <%s>", req.FromName, account.Email)
-	}
+		// 解密密码
+		password, err := s.smtpService.DecryptAccountPassword(account)
+		if err != nil {
+			triedIDs = append(triedIDs, account.ID)
+			continue
+		}
 
-	msg := s.buildMessage(from, req)
+		// 构建邮件
+		from := account.Email
+		if req.FromName != "" {
+			from = fmt.Sprintf("%s <%s>", req.FromName, account.Email)
+		}
 
-	// 发送
-	auth := smtp.PlainAuth("", account.Email, password, account.SmtpHost)
-	addr := fmt.Sprintf("%s:%d", account.SmtpHost, account.SmtpPort)
+		msg := s.buildMessage(from, req)
 
-	err = smtp.SendMail(addr, auth, account.Email, []string{req.To}, []byte(msg))
+		// 收件人列表（To + CC + BCC 都需要投递）
+		recipients := []string{req.To}
+		recipients = append(recipients, req.CC...)
+		recipients = append(recipients, req.BCC...)
 
-	// 记录日志
-	logEntry := &model.SendLog{
-		SmtpAccountID: &account.ID,
-		ToEmail:       req.To,
-		Subject:       req.Subject,
-		Status:        "success",
-	}
+		// 发送
+		smtpAuth := smtp.PlainAuth("", account.Email, password, account.SmtpHost)
+		sendErr := sendMailAuto(account.SmtpHost, account.SmtpPort, smtpAuth, account.Email, recipients, []byte(msg))
 
-	if err != nil {
-		logEntry.Status = "failed"
-		logEntry.ErrorMessage = err.Error()
-		s.smtpService.UpdateError(account.ID, err.Error())
-	}
+		// 记录日志
+		logEntry := &model.SendLog{
+			SmtpAccountID: &account.ID,
+			ToEmail:       req.To,
+			Subject:       req.Subject,
+			Status:        "success",
+		}
 
-	s.db.Create(logEntry)
+		if sendErr != nil {
+			logEntry.Status = "failed"
+			logEntry.ErrorMessage = sendErr.Error()
+			s.smtpService.UpdateError(account.ID, sendErr.Error())
+			s.db.Create(logEntry)
+			triedIDs = append(triedIDs, account.ID)
+			continue
+		}
 
-	if err == nil {
+		s.db.Create(logEntry)
 		s.smtpService.IncrementUsed(account.ID)
 		return &SendResponse{
 			Success:  true,
@@ -86,7 +98,7 @@ func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
 		}, nil
 	}
 
-	return &SendResponse{Success: false, Message: fmt.Sprintf("Failed to send: %v", err)}, nil
+	return &SendResponse{Success: false, Message: "Failed to send email after all attempts"}, nil
 }
 
 func (s *SendService) buildMessage(from string, req *SendRequest) string {
@@ -95,8 +107,12 @@ func (s *SendService) buildMessage(from string, req *SendRequest) string {
 		contentType = "text/html"
 	}
 
-	return fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: %s; charset=UTF-8\r\n\r\n%s",
-		from, req.To, req.Subject, contentType, req.Body)
+	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\n", from, req.To)
+	if len(req.CC) > 0 {
+		headers += fmt.Sprintf("Cc: %s\r\n", strings.Join(req.CC, ", "))
+	}
+	headers += fmt.Sprintf("Subject: %s\r\nContent-Type: %s; charset=UTF-8\r\n\r\n", req.Subject, contentType)
+	return headers + req.Body
 }
 
 func maskEmail(email string) string {

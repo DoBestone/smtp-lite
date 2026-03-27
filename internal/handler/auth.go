@@ -37,3 +37,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"username": req.Username,
 	})
 }
+
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "请求格式错误"})
+		return
+	}
+	if err := h.authService.ChangePassword(req.OldPassword, req.NewPassword); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"message": "密码修改成功，请重新登录"})
+}
