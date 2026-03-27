@@ -360,28 +360,69 @@ EOF
 }
 
 _write_nginx_ssl() {
-  # 先申请证书（HTTP 方式，需要 80 端口可访问）
-  step "申请 SSL 证书"
-  info "正在通过 Let's Encrypt 申请 ${DOMAIN} 的证书..."
-  info "请确保 ${DOMAIN} 的 DNS 已解析到本机公网 IP，且 80 端口已开放"
+  # 使用 webroot 文件验证方式申请证书（兼容 Cloudflare 代理）
+  step "申请 SSL 证书（文件验证）"
+  info "使用 webroot 文件验证方式（兼容 Cloudflare CDN 代理）"
+  info "请确保 ${DOMAIN} 已解析到本机，且 80 端口已开放"
   echo ""
   prompt_yn "DNS 已解析，80 端口已开放？继续申请？" "y" || {
     warn "跳过 SSL 申请，已配置 HTTP 反向代理"
     USE_SSL=false; _write_nginx_http; return
   }
 
-  local certbot_args=("--nginx" "-d" "$DOMAIN" "--non-interactive" "--agree-tos")
+  # 1) 创建 webroot 验证目录
+  local webroot="/var/www/certbot"
+  sudo mkdir -p "${webroot}/.well-known/acme-challenge"
+  sudo chown -R www-data:www-data "$webroot" 2>/dev/null \
+    || sudo chown -R "$(whoami)" "$webroot"
+
+  # 2) 写入临时 Nginx 配置，仅提供 HTTP 并开放验证路径
+  info "配置临时 Nginx 用于文件验证..."
+  local tee_cmd; [ "$OS" = "darwin" ] && tee_cmd="tee" || tee_cmd="sudo tee"
+  $tee_cmd "$NGINX_CONF" > /dev/null <<EOF
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    # Let's Encrypt 文件验证
+    location /.well-known/acme-challenge/ {
+        root ${webroot};
+        allow all;
+    }
+
+    location / {
+        proxy_pass         http://127.0.0.1:${PORT};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+  # 启用临时配置并重载 Nginx
+  if [ "$OS" = "linux" ]; then
+    sudo ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/smtp-lite"
+    sudo nginx -t && sudo systemctl reload nginx
+  else
+    nginx -t && (brew services restart nginx 2>/dev/null || nginx -s reload)
+  fi
+  ok "临时 HTTP 配置已应用，准备验证"
+
+  # 3) 使用 webroot 方式申请证书
+  local certbot_args=("certonly" "--webroot" "-w" "$webroot" "-d" "$DOMAIN" "--non-interactive" "--agree-tos")
   [ -n "$CERTBOT_EMAIL" ] && certbot_args+=("--email" "$CERTBOT_EMAIL") \
                           || certbot_args+=("--register-unsafely-without-email")
 
   if sudo certbot "${certbot_args[@]}"; then
     ok "SSL 证书申请成功"
     _write_nginx_ssl_conf
-    # 自动续期 cron（仅 Linux）
+    # 4) 自动续期 cron（使用 webroot 方式续期）
     if [ "$OS" = "linux" ]; then
-      (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --nginx") \
+      (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --webroot -w ${webroot} --deploy-hook 'systemctl reload nginx'") \
         | sort -u | crontab -
-      ok "已添加证书自动续期 Cron（每天凌晨 3:00）"
+      ok "已添加证书自动续期 Cron（每天凌晨 3:00，webroot 文件验证）"
     fi
   else
     warn "SSL 申请失败（请检查 DNS/防火墙），已降级为 HTTP 配置"
@@ -391,13 +432,23 @@ _write_nginx_ssl() {
 
 _write_nginx_ssl_conf() {
   local cert_dir="/etc/letsencrypt/live/${DOMAIN}"
+  local webroot="/var/www/certbot"
   local tee_cmd; [ "$OS" = "darwin" ] && tee_cmd="tee" || tee_cmd="sudo tee"
   $tee_cmd "$NGINX_CONF" > /dev/null <<EOF
-# HTTP → HTTPS 重定向
+# HTTP → HTTPS 重定向（保留证书续期验证路径）
 server {
     listen 80;
     server_name ${DOMAIN};
-    return 301 https://\$server_name\$request_uri;
+
+    # Let's Encrypt 文件验证（续期用）
+    location /.well-known/acme-challenge/ {
+        root ${webroot};
+        allow all;
+    }
+
+    location / {
+        return 301 https://\$server_name\$request_uri;
+    }
 }
 
 # HTTPS
@@ -430,6 +481,13 @@ server {
 }
 EOF
   ok "HTTPS 配置 → ${NGINX_CONF}"
+
+  # 重载 Nginx 使 SSL 配置生效
+  if [ "$OS" = "linux" ]; then
+    sudo nginx -t && sudo systemctl reload nginx
+  else
+    nginx -t && (brew services restart nginx 2>/dev/null || nginx -s reload)
+  fi
 }
 
 # ── 系统服务 ──────────────────────────────────────────────────
@@ -447,6 +505,16 @@ setup_service() {
   else
     warn "未找到服务管理器，手动启动: cd ${INSTALL_DIR} && ./smtp-lite"
   fi
+}
+
+# ── 安装 CLI 管理工具 ────────────────────────────────────────
+setup_cli() {
+  step "安装 CLI 管理工具"
+  cd "$INSTALL_DIR"
+  chmod +x cli.sh
+  sudo ln -sf "$INSTALL_DIR/cli.sh" /usr/local/bin/smtp-lite
+  ok "CLI 管理工具已安装 → /usr/local/bin/smtp-lite"
+  info "用法: smtp-lite help"
 }
 
 _setup_systemd() {
@@ -522,7 +590,8 @@ print_done() {
     echo -e "${G}  ║${N}  SSL 证书  ${G}Let's Encrypt（90天自动续期）${N}"
   fi
   echo -e "${G}  ╠══════════════════════════════════════════════╣${N}"
-  echo -e "${G}  ║${N}  一键更新  ${W}bash ${INSTALL_DIR}/update.sh${N}"
+  echo -e "${G}  ║${N}  管理工具  ${W}smtp-lite help${N}"
+  echo -e "${G}  ║${N}  一键更新  ${W}smtp-lite update${N}"
   if [ "$OS" = "linux" ] && command -v systemctl &>/dev/null; then
     echo -e "${G}  ║${N}  查看日志  ${W}journalctl -u ${SERVICE_NAME} -f${N}"
     echo -e "${G}  ║${N}  重启服务  ${W}systemctl restart ${SERVICE_NAME}${N}"
@@ -561,6 +630,7 @@ main() {
   write_config        # 写入 config.yaml
   setup_nginx         # Nginx 配置（如需要）
   setup_service       # 系统服务（如需要）
+  setup_cli           # 安装 CLI 管理工具
   print_done
 }
 
