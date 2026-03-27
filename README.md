@@ -22,15 +22,27 @@
 | 🔐 单用户认证 | JWT Token + API Key 双认证方式 |
 | 📧 多账号管理 | 支持 Gmail / QQ / 163 / Outlook 及任意 SMTP |
 | 🔄 智能轮询 | 自动选择可用账号，失败时自动切换，最多重试 3 次 |
-| 📤 统一发送 | 支持 HTML / 纯文本 / CC / BCC |
-| 📊 日志统计 | 发送日志分页查询、成功率、每日发送量 |
+| 📤 统一发送 | 支持 HTML / 纯文本 / CC / BCC / 附件 |
+| 📎 附件支持 | Base64 编码附件，支持图片、PDF、文件等 |
+| 📝 邮件模板 | 保存常用模板，一键复用 |
+| 📨 批量发送 | 上传收件人列表，批量群发 |
+| ⏰ 定时发送 | 设置发送时间，延迟投递 |
+| 📋 发送队列 | 异步发送，后台处理 |
+| 🔔 Webhook 回调 | 发送成功/失败/打开/点击事件通知 |
+| 📊 日志统计 | 发送日志分页查询、成功率、打开率、点击率 |
+| 📈 邮件追踪 | 打开率、点击率追踪（像素追踪） |
 | 🔑 API Key | 应用级密钥，适合程序调用 |
+| 👥 收件人分组 | 收件人分组管理，便于群发 |
+| 🚫 黑名单管理 | 禁止发送到指定邮箱 |
+| ⚡ 发送限流 | 全局/账号级别限流，防止被封 |
+| 🌐 多语言支持 | 中文 / English |
+| 📤 数据导出 | 导出日志/账号/收件人为 CSV |
 | 🔒 加密存储 | SMTP 密码 AES-256 加密，API Key SHA3-256 哈希存储 |
 | 📦 零依赖部署 | SQLite 数据库，单二进制文件运行 |
 | 🐳 Docker 支持 | 提供 Dockerfile + docker-compose |
 | 🔁 一键更新 | 网页端检测新版本，一键完成 git pull + 重编译 + 重启 |
 | 🛠️ CLI 管理 | 终端命令 `smtp-lite` 管理服务、配置、SSL、备份等 20+ 功能 |
-| 🌐 Cloudflare 兼容 | SSL 证书使用 webroot 文件验证，兼容 CF 代理模式 |
+| ☁️ Cloudflare 兼容 | SSL 证书使用 webroot 文件验证，兼容 CF 代理模式 |
 
 ---
 
@@ -226,9 +238,209 @@ Content-Type: application/json
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET`  | `/api/v1/send/logs?page=1&page_size=50` | 分页发送日志 |
-| `GET`  | `/api/v1/stats` | 统计（总量 / 成功率 / 今日） |
+| `GET`  | `/api/v1/stats` | 统计（总量 / 成功率 / 今日 / 打开率 / 点击率） |
 | `GET`  | `/api/v1/version` | 当前版本号（公开） |
 | `POST` | `/api/v1/system/update` | 触发一键更新 |
+
+---
+
+### 邮件模板（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET`    | `/api/v1/templates` | 模板列表 |
+| `GET`    | `/api/v1/templates/:id` | 模板详情 |
+| `POST`   | `/api/v1/templates` | 创建模板 |
+| `PUT`    | `/api/v1/templates/:id` | 更新模板 |
+| `DELETE` | `/api/v1/templates/:id` | 删除模板 |
+| `POST`   | `/api/v1/templates/:id/duplicate` | 复制模板 |
+
+```json
+// POST /api/v1/templates
+{
+  "name": "验证码模板",
+  "subject": "您的验证码",
+  "body": "<p>验证码：{{code}}</p>",
+  "is_html": true,
+  "description": "用于发送验证码"
+}
+```
+
+---
+
+### 批量发送（需要 Token 或 API Key）
+
+```bash
+POST /api/v1/send/batch
+X-API-Key: sk_xxxxxxxxxx
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "批量通知",
+  "emails": ["user1@example.com", "user2@example.com"],
+  "subject": "系统通知",
+  "body": "<p>尊敬的用户...</p>",
+  "is_html": true,
+  "from_name": "系统通知"
+}
+```
+
+---
+
+### 定时发送（需要 Token 或 API Key）
+
+```bash
+POST /api/v1/send/scheduled
+X-API-Key: sk_xxxxxxxxxx
+Content-Type: application/json
+```
+
+```json
+{
+  "to": "recipient@example.com",
+  "subject": "定时通知",
+  "body": "这是一封定时发送的邮件",
+  "is_html": false,
+  "scheduled_at": "2026-03-28T10:00:00Z"
+}
+```
+
+---
+
+### 收件人分组（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET`    | `/api/v1/recipient-groups` | 分组列表 |
+| `POST`   | `/api/v1/recipient-groups` | 创建分组 |
+| `GET`    | `/api/v1/recipient-groups/:id` | 分组详情 |
+| `DELETE` | `/api/v1/recipient-groups/:id` | 删除分组 |
+| `GET`    | `/api/v1/recipients?group_id=xxx` | 收件人列表 |
+| `POST`   | `/api/v1/recipients` | 添加收件人 |
+| `POST`   | `/api/v1/recipients/batch` | 批量导入收件人 |
+| `DELETE` | `/api/v1/recipients/:id` | 删除收件人 |
+
+```json
+// POST /api/v1/recipients/batch
+{
+  "group_id": "xxx-xxx-xxx",
+  "emails": "user1@example.com\nuser2@example.com\nuser3@example.com"
+}
+```
+
+---
+
+### 黑名单管理（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET`    | `/api/v1/blacklist` | 黑名单列表 |
+| `POST`   | `/api/v1/blacklist` | 添加黑名单 |
+| `POST`   | `/api/v1/blacklist/batch` | 批量添加 |
+| `DELETE` | `/api/v1/blacklist/:id` | 移除黑名单 |
+| `GET`    | `/api/v1/blacklist/check?email=xxx` | 检查是否在黑名单 |
+
+```json
+// POST /api/v1/blacklist
+{
+  "email": "spam@example.com",
+  "reason": "投诉用户"
+}
+```
+
+---
+
+### Webhook 回调（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET`    | `/api/v1/webhooks` | Webhook 列表 |
+| `POST`   | `/api/v1/webhooks` | 创建 Webhook |
+| `PUT`    | `/api/v1/webhooks/:id` | 更新 Webhook |
+| `DELETE` | `/api/v1/webhooks/:id` | 删除 Webhook |
+| `POST`   | `/api/v1/webhooks/:id/toggle` | 启用/禁用 |
+| `POST`   | `/api/v1/webhooks/:id/test` | 发送测试事件 |
+
+```json
+// POST /api/v1/webhooks
+{
+  "name": "发送通知",
+  "url": "https://your-server.com/webhook",
+  "secret": "your-secret",
+  "events": ["send_success", "send_failed", "opened", "clicked"]
+}
+```
+
+**Webhook 事件类型：**
+- `send_success` - 邮件发送成功
+- `send_failed` - 邮件发送失败
+- `opened` - 邮件被打开
+- `clicked` - 链接被点击
+- `*` - 所有事件
+
+---
+
+### 数据导出（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/export/logs` | 导出发送日志 CSV |
+| `GET` | `/api/v1/export/accounts` | 导出 SMTP 账号 CSV |
+| `GET` | `/api/v1/export/recipients` | 导出收件人 CSV |
+
+---
+
+### 发送队列状态（需要 Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/queue/stats` | 队列统计（待发送/已发送/失败） |
+| `GET` | `/api/v1/rate-limit/status` | 限流状态 |
+
+---
+
+### 邮件追踪（公开端点）
+
+追踪功能会在 HTML 邮件中自动注入追踪像素和链接追踪。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/track/open/:track_id.png` | 打开追踪像素 |
+| `GET` | `/track/click/:track_id?url=xxx` | 点击追踪重定向 |
+
+**发送时启用追踪：**
+```json
+{
+  "to": "recipient@example.com",
+  "subject": "Hello",
+  "body": "<html><body>...</body></html>",
+  "is_html": true,
+  "track_enabled": true
+}
+```
+
+**追踪数据返回：**
+```json
+{
+  "opened": true,
+  "opened_at": "2026-03-28T10:00:00Z",
+  "clicked": true,
+  "clicked_at": "2026-03-28T10:05:00Z"
+}
+```
+
+---
+
+### 多语言支持
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET`  | `/api/v1/locale` | 获取语言包 |
+| `POST` | `/api/v1/settings/locale` | 设置语言 |
+
+支持语言：`zh-CN`（中文）、`en-US`（英文）
 
 ---
 
