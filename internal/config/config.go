@@ -12,6 +12,9 @@ type Config struct {
 	Auth       AuthConfig       `yaml:"auth"`
 	JWT        JWTConfig        `yaml:"jwt"`
 	Encryption EncryptionConfig `yaml:"encryption"`
+	RateLimit  RateLimitConfig  `yaml:"rate_limit"`
+	Track      TrackConfig      `yaml:"track"`
+	Locale     LocaleConfig     `yaml:"locale"`
 }
 
 type ServerConfig struct {
@@ -31,6 +34,21 @@ type JWTConfig struct {
 
 type EncryptionConfig struct {
 	Key string `yaml:"key"`
+}
+
+type RateLimitConfig struct {
+	Enabled       bool `yaml:"enabled"`        // 是否启用限流
+	GlobalLimit   int  `yaml:"global_limit"`   // 全局每分钟限制
+	AccountLimit  int  `yaml:"account_limit"`  // 单账号每分钟限制
+}
+
+type TrackConfig struct {
+	Enabled     bool   `yaml:"enabled"`      // 是否启用邮件追踪
+	TrackDomain string `yaml:"track_domain"` // 追踪域名（用于追踪链接）
+}
+
+type LocaleConfig struct {
+	Default string `yaml:"default"` // 默认语言 zh-CN / en-US
 }
 
 var (
@@ -57,6 +75,18 @@ func Load() *Config {
 			},
 			Encryption: EncryptionConfig{
 				Key: "smtp-lite-default-encryption-32!",
+			},
+			RateLimit: RateLimitConfig{
+				Enabled:      true,
+				GlobalLimit:  100,  // 全局每分钟100封
+				AccountLimit: 30,   // 单账号每分钟30封
+			},
+			Track: TrackConfig{
+				Enabled:     false,
+				TrackDomain: "",
+			},
+			Locale: LocaleConfig{
+				Default: "zh-CN",
 			},
 		}
 
@@ -87,6 +117,14 @@ func Load() *Config {
 				}
 			}
 		}
+		if v := os.Getenv("SMTP_RATE_LIMIT_GLOBAL"); v != "" {
+			cfg.RateLimit.GlobalLimit = 0
+			for _, c := range v {
+				if c >= '0' && c <= '9' {
+					cfg.RateLimit.GlobalLimit = cfg.RateLimit.GlobalLimit*10 + int(c-'0')
+				}
+			}
+		}
 	})
 	return cfg
 }
@@ -107,6 +145,21 @@ func UpdateAuthPassword(newPassword string) error {
 		Load()
 	}
 	cfg.Auth.Password = newPassword
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile("config.yaml", data, 0600)
+}
+
+// UpdateLocale 更新语言配置
+func UpdateLocale(locale string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if cfg == nil {
+		Load()
+	}
+	cfg.Locale.Default = locale
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return err
