@@ -173,6 +173,10 @@ check_git() {
 }
 
 check_go() {
+  # /etc/profile.d/go.sh 仅在登录 shell 生效，非登录 shell 需手动检查安装路径
+  if ! command -v go &>/dev/null && [ -x /usr/local/go/bin/go ]; then
+    export PATH=$PATH:/usr/local/go/bin
+  fi
   if command -v go &>/dev/null; then
     local ver major minor
     ver=$(go version | grep -o '[0-9]\+\.[0-9]\+' | head -1)
