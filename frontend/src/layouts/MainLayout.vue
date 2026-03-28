@@ -1,54 +1,161 @@
 <template>
   <div class="app-layout">
     <!-- 侧边栏 -->
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-icon">📧</span>
-          <span v-if="!sidebarCollapsed" class="logo-text">SMTP Lite</span>
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="sidebar-logo">
+        <span class="logo-icon">📧</span>
+        <div class="logo-text">
+          <span class="logo-title">SMTP Lite</span>
+          <span class="logo-subtitle">个人邮箱聚合</span>
         </div>
-        <button class="sidebar-toggle" @click="sidebarCollapsed = !sidebarCollapsed">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </button>
       </div>
       
+      <!-- 导航菜单 -->
       <nav class="sidebar-nav">
-        <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item">
-          <span class="nav-icon" v-html="item.icon"></span>
-          <span v-if="!sidebarCollapsed" class="nav-label">{{ item.label }}</span>
-        </router-link>
+        <div class="nav-section">
+          <span class="nav-section-title">核心功能</span>
+          <router-link to="/smtp" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+            </span>
+            <span class="nav-label">SMTP 账号</span>
+          </router-link>
+          
+          <router-link to="/send" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="nav-label">发送邮件</span>
+          </router-link>
+          
+          <router-link to="/logs" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">发送日志</span>
+          </router-link>
+          
+          <router-link to="/stats" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="nav-label">统计数据</span>
+          </router-link>
+        </div>
+        
+        <div class="nav-section">
+          <span class="nav-section-title">资源管理</span>
+          <router-link to="/keys" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">API Key</span>
+          </router-link>
+          
+          <router-link to="/templates" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">邮件模板</span>
+          </router-link>
+          
+          <router-link to="/recipients" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/>
+                <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">收件人</span>
+          </router-link>
+        </div>
+        
+        <div class="nav-section">
+          <span class="nav-section-title">高级功能</span>
+          <router-link to="/webhooks" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">Webhook</span>
+          </router-link>
+          
+          <router-link to="/blacklist" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">黑名单</span>
+          </router-link>
+          
+          <router-link to="/docs" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">API 文档</span>
+          </router-link>
+        </div>
       </nav>
       
+      <!-- 底部统计 -->
       <div class="sidebar-footer">
-        <div v-if="!sidebarCollapsed" class="stats-mini">
+        <div class="today-stats">
           <span class="stats-dot"></span>
-          今日 {{ stats.today_sent || 0 }} 封
+          <span>今日发送 <strong>{{ stats.today_sent || 0 }}</strong> 封</span>
         </div>
       </div>
     </aside>
     
     <!-- 主内容区 -->
-    <div class="main-container">
-      <!-- 顶部栏 -->
+    <div class="main-wrapper">
+      <!-- 顶部导航 -->
       <header class="topbar">
         <div class="topbar-left">
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <div class="topbar-right">
-          <button class="btn-icon" @click="showChangePwd = true" title="修改密码">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/>
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="btn-logout" @click="logout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            退出
-          </button>
+          <div class="quick-stats">
+            <span class="stat-item">
+              <span class="stat-dot success"></span>
+              成功率 {{ (stats.success_rate || 0).toFixed(1) }}%
+            </span>
+          </div>
+          <div class="topbar-actions">
+            <button class="action-btn" @click="showChangePwd = true" title="修改密码">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <span>设置</span>
+            </button>
+            <button class="action-btn logout" @click="logout">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>退出</span>
+            </button>
+          </div>
         </div>
       </header>
       
@@ -72,36 +179,32 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { store, actions } from '@/store'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+
+const pageTitles = {
+  '/smtp': 'SMTP 账号管理',
+  '/send': '发送邮件',
+  '/keys': 'API Key 管理',
+  '/templates': '邮件模板',
+  '/recipients': '收件人分组',
+  '/logs': '发送日志',
+  '/stats': '统计数据',
+  '/webhooks': 'Webhook 回调',
+  '/blacklist': '黑名单管理',
+  '/docs': 'API 文档'
+}
 
 export default {
   name: 'MainLayout',
   components: { ChangePasswordModal },
   setup() {
     const router = useRouter()
-    const sidebarCollapsed = ref(false)
+    const route = useRoute()
     const showChangePwd = ref(false)
     
-    const navItems = [
-      { path: '/smtp', label: 'SMTP 账号', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8"/></svg>' },
-      { path: '/send', label: '发送邮件', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>' },
-      { path: '/keys', label: 'API Key', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/templates', label: '邮件模板', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/recipients', label: '收件人', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/logs', label: '发送日志', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/stats', label: '统计', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="1.8"/></svg>' },
-      { path: '/webhooks', label: 'Webhook', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/blacklist', label: '黑名单', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/></svg>' },
-      { path: '/docs', label: 'API 文档', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/><polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/></svg>' },
-    ]
-    
-    const pageTitle = computed(() => {
-      const item = navItems.find(i => i.path === router.currentRoute.value.path)
-      return item?.label || ''
-    })
-    
+    const pageTitle = computed(() => pageTitles[route.path] || '')
     const stats = computed(() => store.stats)
     const toast = computed(() => store.toast)
     
@@ -114,81 +217,85 @@ export default {
       actions.loadStats()
     })
     
-    return {
-      sidebarCollapsed,
-      showChangePwd,
-      navItems,
-      pageTitle,
-      stats,
-      toast,
-      logout
-    }
+    return { pageTitle, stats, toast, showChangePwd, logout }
   }
 }
 </script>
 
 <style scoped>
+* { box-sizing: border-box; }
+
 .app-layout {
   display: flex;
   min-height: 100vh;
-  background: #f5f7fa;
+  background: #f8fafc;
 }
 
-/* 侧边栏 */
+/* ========== 侧边栏 ========== */
 .sidebar {
-  width: 240px;
+  width: 260px;
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  color: white;
+  color: #fff;
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
   z-index: 100;
+  overflow: hidden;
 }
 
-.sidebar.collapsed {
-  width: 64px;
-}
-
-.sidebar-header {
-  padding: 20px 16px;
+.sidebar-logo {
+  padding: 24px 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .logo-icon {
-  font-size: 24px;
+  font-size: 32px;
+  line-height: 1;
 }
 
 .logo-text {
-  font-size: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-title {
+  font-size: 20px;
   font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
-.sidebar-toggle {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  color: white;
-  padding: 6px;
-  border-radius: 6px;
-  cursor: pointer;
+.logo-subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 2px;
 }
 
+/* 导航菜单 */
 .sidebar-nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 16px 12px;
   overflow-y: auto;
+}
+
+.nav-section {
+  margin-bottom: 24px;
+}
+
+.nav-section-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 12px;
+  margin-bottom: 8px;
 }
 
 .nav-item {
@@ -201,30 +308,40 @@ export default {
   border-radius: 8px;
   margin-bottom: 4px;
   transition: all 0.2s;
+  font-size: 14px;
 }
 
 .nav-item:hover {
-  background: rgba(255,255,255,0.1);
-  color: white;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
 .nav-item.router-link-active {
-  background: #3b82f6;
-  color: white;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .nav-icon {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0.9;
 }
 
+.nav-item.router-link-active .nav-icon {
+  opacity: 1;
+}
+
+/* 侧边栏底部 */
 .sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
 
-.stats-mini {
+.today-stats {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -237,25 +354,28 @@ export default {
   height: 8px;
   background: #22c55e;
   border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
-/* 主容器 */
-.main-container {
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ========== 主内容区 ========== */
+.main-wrapper {
   flex: 1;
-  margin-left: 240px;
+  margin-left: 260px;
   display: flex;
   flex-direction: column;
-  transition: margin-left 0.3s ease;
+  min-height: 100vh;
 }
 
-.sidebar.collapsed + .main-container {
-  margin-left: 64px;
-}
-
-/* 顶部栏 */
+/* 顶部导航 */
 .topbar {
-  background: white;
-  padding: 16px 24px;
+  background: #fff;
+  padding: 0 32px;
+  height: 64px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -275,46 +395,67 @@ export default {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 24px;
 }
 
-.btn-icon {
-  background: transparent;
-  border: none;
-  padding: 8px;
-  color: #64748b;
-  cursor: pointer;
-  border-radius: 8px;
+.quick-stats {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 16px;
 }
 
-.btn-icon:hover {
-  background: #f1f5f9;
-}
-
-.btn-logout {
+.stat-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  background: #f1f5f9;
-  border: none;
-  border-radius: 8px;
+  font-size: 13px;
   color: #64748b;
-  font-size: 14px;
-  cursor: pointer;
 }
 
-.btn-logout:hover {
-  background: #e2e8f0;
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.stat-dot.success { background: #22c55e; }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.action-btn.logout:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
 /* 页面内容 */
 .page-content {
   flex: 1;
-  padding: 24px;
+  padding: 24px 32px;
 }
 
 /* Toast */
@@ -328,6 +469,7 @@ export default {
   font-size: 14px;
   font-weight: 500;
   z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .toast.success {
@@ -350,6 +492,33 @@ export default {
 }
 
 /* 响应式 */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 72px;
+  }
+  
+  .sidebar .logo-text,
+  .sidebar .nav-section-title,
+  .sidebar .nav-label,
+  .sidebar-footer {
+    display: none;
+  }
+  
+  .sidebar-logo {
+    justify-content: center;
+    padding: 20px;
+  }
+  
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  
+  .main-wrapper {
+    margin-left: 72px;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
@@ -359,8 +528,20 @@ export default {
     transform: translateX(0);
   }
   
-  .main-container {
+  .main-wrapper {
     margin-left: 0;
+  }
+  
+  .page-content {
+    padding: 16px;
+  }
+  
+  .topbar {
+    padding: 0 16px;
+  }
+  
+  .action-btn span {
+    display: none;
   }
 }
 </style>
