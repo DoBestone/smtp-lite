@@ -1,0 +1,264 @@
+/* 公共样式 */
+
+/* 按钮 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover { background: #2563eb; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover { background: #e2e8f0; }
+
+/* 卡片 */
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* 表格 */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
+}
+
+.data-table tr:hover { background: #f8fafc; }
+
+.cell-main {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+/* 徽章 */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge.active { background: #dcfce7; color: #166534; }
+.badge.disabled { background: #fee2e2; color: #991b1b; }
+.badge.success { background: #dcfce7; color: #166534; }
+.badge.failed { background: #fee2e2; color: #991b1b; }
+
+/* 操作按钮 */
+.action-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-action {
+  padding: 6px 12px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.btn-action:hover { background: #e2e8f0; }
+.btn-action.danger { color: #dc2626; }
+.btn-action.danger:hover { background: #fee2e2; }
+
+/* 页面头部 */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.page-desc {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* 空状态 */
+.empty-cell {
+  padding: 40px !important;
+  text-align: center;
+}
+
+.empty-state {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.modal form {
+  padding: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* 表单 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.field input, .field textarea, .field select {
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: #3b82f6;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* 统计卡片 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .data-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

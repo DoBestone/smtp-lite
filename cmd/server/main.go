@@ -97,8 +97,6 @@ func main() {
 
 	// 静态文件
 	r.Static("/assets", "./frontend/dist/assets")
-	r.StaticFile("/", "./frontend/dist/index.html")
-	r.StaticFile("/favicon.ico", "./frontend/dist/favicon.ico")
 
 	// 追踪端点（公开，无需认证）
 	r.GET("/track/open/:track_id.png", trackHandler.Open)
