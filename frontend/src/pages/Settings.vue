@@ -50,6 +50,23 @@
             <path d="M9 18l6-6-6-6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
+        
+        <div class="settings-item">
+          <div class="settings-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="settings-content">
+            <div class="settings-title">语言设置</div>
+            <div class="settings-desc">界面显示语言</div>
+          </div>
+          <select v-model="locale" class="locale-select" @change="changeLocale">
+            <option value="zh-CN">简体中文</option>
+            <option value="en-US">English</option>
+          </select>
+        </div>
       </div>
     </div>
     
@@ -184,8 +201,14 @@ export default {
     const updateProgress = ref('') // '', 'updating', 'done', 'error'
     const updateStep = ref(0)
     const showChangePwd = ref(false)
+    const locale = ref(store.locale)
     
     const queueStats = computed(() => store.queueStats)
+    
+    const changeLocale = () => {
+      actions.setLocale(locale.value)
+      actions.showToast('语言已切换 / Language changed')
+    }
     
     const loadVersion = async () => {
       try {
@@ -266,9 +289,11 @@ export default {
       updateStep,
       queueStats,
       showChangePwd,
+      locale,
       checkUpdate,
       doUpdate,
-      loadQueueStats
+      loadQueueStats,
+      changeLocale
     }
   }
 }
@@ -377,6 +402,20 @@ export default {
 
 .settings-arrow {
   flex-shrink: 0;
+}
+
+.locale-select {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+}
+
+.locale-select:focus {
+  border-color: #3b82f6;
 }
 
 /* 更新区域 */

@@ -5,7 +5,15 @@
         <h2>收件人分组</h2>
         <p class="page-desc">管理收件人分组，便于批量发送</p>
       </div>
-      <button class="btn-primary" @click="showGroupModal = true">+ 新建分组</button>
+      <div class="header-actions">
+        <button class="btn-secondary" @click="exportRecipients">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          导出
+        </button>
+        <button class="btn-primary" @click="showGroupModal = true">+ 新建分组</button>
+      </div>
     </div>
     
     <div class="card">
@@ -162,15 +170,39 @@ export default {
       } catch (e) { actions.showToast('导入失败', 'error') }
     }
     
+    const exportRecipients = async () => {
+      try {
+        const response = await fetch('/api/v1/export/recipients', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `recipients_${new Date().toISOString().slice(0,10)}.csv`
+        a.click()
+        window.URL.revokeObjectURL(url)
+        actions.showToast('导出成功')
+      } catch (e) {
+        actions.showToast('导出失败', 'error')
+      }
+    }
+    
     onMounted(() => actions.loadRecipientGroups())
     
-    return { showGroupModal, showRecipientModal, showImportModal, currentGroup, recipients, groupForm, recipientForm, batchEmails, groups, createGroup, deleteGroup, viewRecipients, createRecipient, deleteRecipient, batchImport }
+    return { showGroupModal, showRecipientModal, showImportModal, currentGroup, recipients, groupForm, recipientForm, batchEmails, groups, createGroup, deleteGroup, viewRecipients, createRecipient, deleteRecipient, batchImport, exportRecipients }
   }
 }
 </script>
 
 <style scoped>
 @import '@/assets/styles.css';
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .card-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
 tr.active { background: #eff6ff; }
 .badge.active { background: #dcfce7; color: #166534; }

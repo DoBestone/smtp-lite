@@ -5,10 +5,18 @@
         <h2>SMTP 账号管理</h2>
         <p class="page-desc">管理用于发送邮件的 SMTP 账号，支持多账号轮询与故障转移</p>
       </div>
-      <button class="btn-primary" @click="showModal = true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        添加账号
-      </button>
+      <div class="header-actions">
+        <button class="btn-secondary" @click="exportAccounts">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          导出
+        </button>
+        <button class="btn-primary" @click="showModal = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          添加账号
+        </button>
+      </div>
     </div>
     
     <div class="card">
@@ -181,6 +189,24 @@ export default {
       }
     }
     
+    const exportAccounts = async () => {
+      try {
+        const response = await fetch('/api/v1/export/accounts', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `smtp_accounts_${new Date().toISOString().slice(0,10)}.csv`
+        a.click()
+        window.URL.revokeObjectURL(url)
+        actions.showToast('导出成功')
+      } catch (e) {
+        actions.showToast('导出失败', 'error')
+      }
+    }
+    
     onMounted(() => {
       if (accounts.value.length === 0) {
         actions.loadSmtpAccounts()
@@ -196,7 +222,8 @@ export default {
       createAccount,
       testAccount,
       toggleAccount,
-      deleteAccount
+      deleteAccount,
+      exportAccounts
     }
   }
 }
@@ -204,6 +231,11 @@ export default {
 
 <style scoped>
 @import '@/assets/styles.css';
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .text-code {
   background: #f1f5f9;
