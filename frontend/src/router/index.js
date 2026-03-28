@@ -23,6 +23,7 @@ const routes = [
       { path: 'webhooks', name: 'Webhooks', component: () => import('@/pages/Webhooks.vue') },
       { path: 'blacklist', name: 'Blacklist', component: () => import('@/pages/Blacklist.vue') },
       { path: 'docs', name: 'Docs', component: () => import('@/pages/Docs.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('@/pages/Settings.vue') },
     ]
   }
 ]

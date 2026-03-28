@@ -116,6 +116,18 @@
             <span class="nav-label">API 文档</span>
           </router-link>
         </div>
+        
+        <div class="nav-section nav-section-bottom">
+          <router-link to="/settings" class="nav-item">
+            <span class="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            </span>
+            <span class="nav-label">系统设置</span>
+          </router-link>
+        </div>
       </nav>
       
       <!-- 底部统计 -->
@@ -142,13 +154,6 @@
             </span>
           </div>
           <div class="topbar-actions">
-            <button class="action-btn" @click="showChangePwd = true" title="修改密码">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/>
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              </svg>
-              <span>设置</span>
-            </button>
             <button class="action-btn logout" @click="logout">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -165,9 +170,6 @@
       </main>
     </div>
     
-    <!-- 修改密码弹窗 -->
-    <ChangePasswordModal v-if="showChangePwd" @close="showChangePwd = false" />
-    
     <!-- Toast -->
     <transition name="toast-fade">
       <div v-if="toast.show" class="toast" :class="toast.type">
@@ -181,7 +183,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { store, actions } from '@/store'
-import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 
 const pageTitles = {
   '/smtp': 'SMTP 账号管理',
@@ -193,16 +194,15 @@ const pageTitles = {
   '/stats': '统计数据',
   '/webhooks': 'Webhook 回调',
   '/blacklist': '黑名单管理',
-  '/docs': 'API 文档'
+  '/docs': 'API 文档',
+  '/settings': '系统设置'
 }
 
 export default {
   name: 'MainLayout',
-  components: { ChangePasswordModal },
   setup() {
     const router = useRouter()
     const route = useRoute()
-    const showChangePwd = ref(false)
     
     const pageTitle = computed(() => pageTitles[route.path] || '')
     const stats = computed(() => store.stats)
@@ -217,7 +217,7 @@ export default {
       actions.loadStats()
     })
     
-    return { pageTitle, stats, toast, showChangePwd, logout }
+    return { pageTitle, stats, toast, logout }
   }
 }
 </script>
@@ -333,6 +333,13 @@ export default {
 
 .nav-item.router-link-active .nav-icon {
   opacity: 1;
+}
+
+/* 底部导航区域 */
+.nav-section-bottom {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
 
 /* 侧边栏底部 */
