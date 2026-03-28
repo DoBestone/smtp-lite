@@ -5,10 +5,16 @@
         <h2>发送日志</h2>
         <p class="page-desc">查看所有邮件发送记录与状态详情</p>
       </div>
-      <button class="btn-secondary" @click="loadLogs">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" stroke-width="2"/></svg>
-        刷新
-      </button>
+      <div class="header-actions">
+        <button class="btn-secondary" @click="loadLogs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" stroke-width="2"/></svg>
+          刷新
+        </button>
+        <button class="btn-primary" @click="exportLogs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          导出 CSV
+        </button>
+      </div>
     </div>
     
     <div class="card">
@@ -48,7 +54,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { store, actions } from '@/store'
 
 export default {
@@ -63,15 +69,38 @@ export default {
       return new Date(date).toLocaleString('zh-CN')
     }
     
+    const exportLogs = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const response = await fetch('/api/v1/export/logs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `send_logs_${new Date().toISOString().slice(0,10)}.csv`
+        a.click()
+        window.URL.revokeObjectURL(url)
+      } catch (e) {
+        actions.showToast('导出失败', 'error')
+      }
+    }
+    
     onMounted(loadLogs)
     
-    return { logs, loadLogs, formatDate }
+    return { logs, loadLogs, formatDate, exportLogs }
   }
 }
 </script>
 
 <style scoped>
 @import '@/assets/styles.css';
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .track-badge {
   display: inline-block;

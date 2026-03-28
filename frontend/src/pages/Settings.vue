@@ -29,6 +29,30 @@
       </div>
     </div>
     
+    <!-- 账户设置 -->
+    <div class="card mb-16">
+      <div class="card-header">
+        <h3>账户设置</h3>
+      </div>
+      <div class="settings-list">
+        <div class="settings-item" @click="showChangePwd = true">
+          <div class="settings-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="settings-content">
+            <div class="settings-title">修改密码</div>
+            <div class="settings-desc">更改登录密码</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="settings-arrow">
+            <path d="M9 18l6-6-6-6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    
     <!-- 检测更新 -->
     <div class="card mb-16">
       <div class="card-header">
@@ -134,6 +158,9 @@
         </div>
       </div>
     </div>
+    
+    <!-- 修改密码弹窗 -->
+    <ChangePasswordModal v-if="showChangePwd" @close="showChangePwd = false" />
   </div>
 </template>
 
@@ -141,11 +168,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { store, actions } from '@/store'
 import axios from 'axios'
+import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 
 const API = '/api/v1'
 
 export default {
   name: 'Settings',
+  components: { ChangePasswordModal },
   setup() {
     const currentVersion = ref('')
     const latestVersion = ref('')
@@ -154,6 +183,7 @@ export default {
     const updating = ref(false)
     const updateProgress = ref('') // '', 'updating', 'done', 'error'
     const updateStep = ref(0)
+    const showChangePwd = ref(false)
     
     const queueStats = computed(() => store.queueStats)
     
@@ -235,6 +265,7 @@ export default {
       updateProgress,
       updateStep,
       queueStats,
+      showChangePwd,
       checkUpdate,
       doUpdate,
       loadQueueStats
@@ -292,6 +323,60 @@ export default {
 .update-badge.latest {
   background: #f1f5f9;
   color: #64748b;
+}
+
+/* 设置列表 */
+.settings-list {
+  padding: 8px 0;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-item:hover {
+  background: #f8fafc;
+}
+
+.settings-icon {
+  width: 40px;
+  height: 40px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+.settings-item:hover .settings-icon {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.settings-content {
+  flex: 1;
+}
+
+.settings-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.settings-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.settings-arrow {
+  flex-shrink: 0;
 }
 
 /* 更新区域 */
