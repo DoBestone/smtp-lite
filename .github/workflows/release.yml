@@ -10,24 +10,57 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.goarm && format('v{0}', matrix.goarm) || '' }}
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # ── Linux 服务器 ─────────────────────────────
           - runner: ubuntu-latest
             goos: linux
             goarch: amd64
+            label: x86_64
           - runner: ubuntu-latest
             goos: linux
             goarch: arm64
             cross_cc: aarch64-linux-gnu-gcc
-          - runner: macos-13
-            goos: darwin
-            goarch: amd64
+            cross_pkg: gcc-aarch64-linux-gnu
+            label: ARM64 (Graviton/鲲鹏)
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: arm
+            goarm: "7"
+            cross_cc: arm-linux-gnueabihf-gcc
+            cross_pkg: gcc-arm-linux-gnueabihf
+            label: ARMv7 (树莓派/边缘)
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: "386"
+            cross_pkg: gcc-multilib
+            label: x86 32-bit
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: mips64le
+            cross_cc: mips64el-linux-gnuabi64-gcc
+            cross_pkg: gcc-mips64el-linux-gnuabi64
+            label: MIPS64LE (龙芯)
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: riscv64
+            cross_cc: riscv64-linux-gnu-gcc
+            cross_pkg: gcc-riscv64-linux-gnu
+            label: RISC-V 64
+          # ── macOS 开发 ──────────────────────────────
           - runner: macos-latest
             goos: darwin
             goarch: arm64
+            label: Apple Silicon
+          - runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            cross_cc: "clang -arch x86_64"
+            label: Intel Mac
 
     steps:
       - name: Checkout
@@ -45,11 +78,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install cross-compiler (linux/arm64)
-        if: matrix.cross_cc != ''
+      - name: Install cross-compiler
+        if: matrix.cross_pkg != '' && matrix.goos == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          sudo apt-get install -y ${{ matrix.cross_pkg }}
 
       - name: Build frontend
         run: |
@@ -61,15 +94,25 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
           CGO_ENABLED: 1
           CC: ${{ matrix.cross_cc || '' }}
         run: |
-          BINARY_NAME="smtp-lite-${{ matrix.goos }}-${{ matrix.goarch }}"
+          SUFFIX="${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ -n "${{ matrix.goarm }}" ]; then
+            SUFFIX="${SUFFIX}v${{ matrix.goarm }}"
+          fi
+          BINARY_NAME="smtp-lite-${SUFFIX}"
           go build \
             -ldflags="-s -w" \
             -o "${BINARY_NAME}" \
             ./cmd/server/
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
+
+      - name: Verify binary
+        if: matrix.goos == runner.os || (matrix.goos == 'linux' && matrix.goarch == 'amd64') || (matrix.goos == 'darwin' && matrix.goarch == 'arm64')
+        run: |
+          ./${{ env.BINARY_NAME }} --version
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2

@@ -30,9 +30,13 @@ FORCE=false
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 case "$ARCH" in
-  x86_64)        ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-  *)             err "不支持的架构: $ARCH" ;;
+  x86_64|amd64)    ARCH="amd64" ;;
+  aarch64|arm64)   ARCH="arm64" ;;
+  armv7*|armhf)    ARCH="armv7" ;;
+  i686|i386)       ARCH="386" ;;
+  mips64el|mips64) ARCH="mips64le" ;;
+  riscv64)         ARCH="riscv64" ;;
+  *)               err "不支持的架构: $ARCH" ;;
 esac
 ASSET_NAME="smtp-lite-${OS}-${ARCH}"
 info "平台: ${OS}/${ARCH}"

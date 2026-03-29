@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================
 #  SMTP Lite - 交互式安装脚本 v2.1
-#  支持: macOS (Intel/Apple Silicon) · Linux (x86_64/arm64)
+#  支持: macOS (Intel/Apple Silicon) · Linux (x86_64/arm64/armv7/386/mips64le/riscv64)
 #  特性: 优先下载预编译二进制，失败则源码编译
 #        支持 SQLite / MySQL 数据库选择
 #  用法: bash install.sh
@@ -198,9 +198,13 @@ detect_system() {
     *)      err "不支持的操作系统: $(uname -s)" ;;
   esac
   case "$(uname -m)" in
-    x86_64|amd64)  ARCH="amd64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
-    *)             err "不支持的架构: $(uname -m)" ;;
+    x86_64|amd64)    ARCH="amd64" ;;
+    aarch64|arm64)   ARCH="arm64" ;;
+    armv7*|armhf)    ARCH="armv7" ;;
+    i686|i386)       ARCH="386" ;;
+    mips64el|mips64) ARCH="mips64le" ;;
+    riscv64)         ARCH="riscv64" ;;
+    *)               err "不支持的架构: $(uname -m)" ;;
   esac
   if   command -v brew    &>/dev/null; then PKG="brew"
   elif command -v apt-get &>/dev/null; then PKG="apt"
