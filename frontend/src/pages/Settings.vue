@@ -134,8 +134,8 @@
           <h3>正在更新...</h3>
           <p class="text-muted">请勿关闭页面</p>
           <div class="update-steps">
-            <div :class="['step', { done: updateStep >= 1 }]">1. 拉取代码</div>
-            <div :class="['step', { done: updateStep >= 2 }]">2. 编译程序</div>
+            <div :class="['step', { done: updateStep >= 1 }]">1. 下载更新</div>
+            <div :class="['step', { done: updateStep >= 2 }]">2. 替换文件</div>
             <div :class="['step', { done: updateStep >= 3 }]">3. 重启服务</div>
           </div>
         </div>
@@ -158,7 +158,11 @@
               <path d="M15 9l-6 6M9 9l6 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
             </svg>
           </div>
-          <h3>更新失败</h3>
+          <h3>{{ updateErrorMsg }}</h3>
+          <p class="update-error-hint">{{ updateErrorHint }}</p>
+          <div v-if="updateErrorCmd" class="update-cmd-box">
+            <code>{{ updateErrorCmd }}</code>
+          </div>
           <button class="btn-secondary" @click="updateProgress = ''">关闭</button>
         </div>
       </div>
@@ -317,23 +321,51 @@ export default {
         .replace(/\n/g, '<br>')
     }
     
+    const updateErrorMsg = ref('更新失败')
+    const updateErrorHint = ref('')
+    const updateErrorCmd = ref('')
+    
+    const showUpdateError = (msg, hint, cmd) => {
+      updateErrorMsg.value = msg || '更新失败'
+      updateErrorHint.value = hint || ''
+      updateErrorCmd.value = cmd || ''
+      updateProgress.value = 'error'
+    }
+    
     const doUpdate = async () => {
       updating.value = true
       updateProgress.value = 'updating'
-      updateStep.value = 1
+      updateStep.value = 0
       
       try {
-        await axios.post(`${API}/system/update`, {}, { headers: actions.getHeaders() })
+        // 步骤1：获取确认令牌
+        updateStep.value = 1
+        let confirmToken = ''
+        try {
+          const prepareRes = await axios.post(`${API}/system/update-prepare`, {}, { headers: actions.getHeaders() })
+          confirmToken = prepareRes.data.confirm_token
+        } catch (e) {
+          showUpdateError('更新失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
+          return
+        }
+        
+        // 步骤2：发起更新
+        try {
+          await axios.post(`${API}/system/update`, { confirm_token: confirmToken }, { headers: actions.getHeaders() })
+        } catch (e) {
+          showUpdateError('更新启动失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
+          return
+        }
         updateStep.value = 2
         
-        // 轮询等待新版本
+        // 步骤3：轮询等待新版本
         const target = latestVersion.value
         const startTime = Date.now()
-        const timeout = 120000 // 2分钟超时
+        const timeout = 180000 // 3分钟超时
         
         const poll = async () => {
           if (Date.now() - startTime > timeout) {
-            updateProgress.value = 'error'
+            showUpdateError('更新超时', '请检查服务器日志，或使用命令行更新：', 'smtp-lite update')
             return
           }
           
@@ -345,14 +377,16 @@ export default {
               setTimeout(() => window.location.reload(), 3000)
               return
             }
-          } catch (e) {}
+          } catch (e) {
+            // 服务重启中，继续轮询
+          }
           
           setTimeout(poll, 2000)
         }
         
         poll()
       } catch (e) {
-        updateProgress.value = 'error'
+        showUpdateError('更新失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
       } finally {
         updating.value = false
       }
@@ -374,6 +408,9 @@ export default {
       updating,
       updateProgress,
       updateStep,
+      updateErrorMsg,
+      updateErrorHint,
+      updateErrorCmd,
       queueStats,
       showChangePwd,
       locale,
@@ -616,6 +653,24 @@ export default {
 
 .update-result.success h3 { color: #166534; }
 .update-result.error h3 { color: #991b1b; }
+
+.update-error-hint {
+  color: #64748b;
+  font-size: 14px;
+  margin: 4px 0 12px;
+}
+
+.update-cmd-box {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: #334155;
+  user-select: all;
+}
 
 /* 系统状态 */
 .system-stats {
