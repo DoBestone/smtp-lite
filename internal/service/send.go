@@ -50,22 +50,23 @@ func (s *SendService) SetTrackService(svc *TrackService) {
 }
 
 type SendRequest struct {
-	To          string       `json:"to" binding:"required,email"`
-	CC          []string     `json:"cc"`
-	BCC         []string     `json:"bcc"`
-	Subject     string       `json:"subject" binding:"required"`
-	Body        string       `json:"body" binding:"required"`
-	FromName    string       `json:"from_name"`
-	IsHTML      bool         `json:"is_html"`
-	Attachments []Attachment `json:"attachments"`
-	TrackEnabled bool        `json:"track_enabled"` // 是否启用追踪
+	To           string       `json:"to" binding:"required,email"`
+	CC           []string     `json:"cc"`
+	BCC          []string     `json:"bcc"`
+	Subject      string       `json:"subject" binding:"required"`
+	Body         string       `json:"body" binding:"required"`
+	FromName     string       `json:"from_name"`
+	IsHTML       bool         `json:"is_html"`
+	Attachments  []Attachment `json:"attachments"`
+	TrackEnabled bool         `json:"track_enabled"` // 是否启用追踪
 }
 
 type SendResponse struct {
-	Success  bool   `json:"success"`
-	Message  string `json:"message"`
-	UsedSMTP string `json:"used_smtp,omitempty"`
-	LogID    string `json:"log_id,omitempty"`
+	Success  bool     `json:"success"`
+	Message  string   `json:"message"`
+	UsedSMTP string   `json:"used_smtp,omitempty"`
+	LogID    string   `json:"log_id,omitempty"`
+	Details  []string `json:"details,omitempty"`
 }
 
 func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
@@ -79,53 +80,65 @@ func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
 		return &SendResponse{Success: false, Message: "Rate limit exceeded"}, nil
 	}
 
-	const maxRetries = 3
-	var triedIDs []uuid.UUID
+	accounts, err := s.smtpService.ListActiveAccountsExcluding(nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(accounts) == 0 {
+		message := "No active SMTP account configured"
+		logEntry := &model.SendLog{ToEmail: req.To, Subject: req.Subject, Status: "failed", ErrorMessage: message}
+		s.db.Create(logEntry)
+		return &SendResponse{Success: false, Message: message, LogID: logEntry.ID.String()}, nil
+	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// 检查账号限流并获取可用账号
-		account, err := s.smtpService.GetAvailableAccountExcluding(triedIDs)
-		if err != nil {
-			break
+	trackID := ""
+	if req.TrackEnabled {
+		trackID = uuid.New().String()[:8]
+	}
+
+	recipients := []string{req.To}
+	recipients = append(recipients, req.CC...)
+	recipients = append(recipients, req.BCC...)
+
+	var attempted int
+	var details []string
+	var rateLimited []string
+
+	for i := range accounts {
+		account := &accounts[i]
+		if account.DailyLimit > 0 && account.DailyUsed >= account.DailyLimit {
+			rateLimited = append(rateLimited, maskEmail(account.Email))
+			continue
 		}
-
-		// 检查账号限流
 		if s.rateLimitSvc != nil && !s.rateLimitSvc.CheckAccountLimit(account.ID) {
-			triedIDs = append(triedIDs, account.ID)
+			rateLimited = append(rateLimited, maskEmail(account.Email))
 			continue
 		}
 
-		// 解密密码
+		attempted++
+
 		password, err := s.smtpService.DecryptAccountPassword(account)
 		if err != nil {
-			triedIDs = append(triedIDs, account.ID)
+			detail := fmt.Sprintf("%s: password decrypt failed", maskEmail(account.Email))
+			details = append(details, detail)
+			s.smtpService.UpdateError(account.ID, detail)
+			logEntry := &model.SendLog{SmtpAccountID: &account.ID, ToEmail: req.To, Subject: req.Subject, Status: "failed", TrackID: trackID, ErrorMessage: detail}
+			s.db.Create(logEntry)
+			if s.webhookSvc != nil {
+				s.webhookSvc.TriggerSendFailed(logEntry)
+			}
 			continue
 		}
 
-		// 生成追踪ID
-		trackID := ""
-		if req.TrackEnabled {
-			trackID = uuid.New().String()[:8]
-		}
-
-		// 构建邮件
 		from := account.Email
 		if req.FromName != "" {
 			from = fmt.Sprintf("%s <%s>", req.FromName, account.Email)
 		}
 
 		msg := s.buildMessage(from, req, trackID)
-
-		// 收件人列表
-		recipients := []string{req.To}
-		recipients = append(recipients, req.CC...)
-		recipients = append(recipients, req.BCC...)
-
-		// 发送
 		smtpAuth := smtp.PlainAuth("", account.Email, password, account.SmtpHost)
 		sendErr := sendMailAuto(account.SmtpHost, account.SmtpPort, smtpAuth, account.Email, recipients, []byte(msg))
 
-		// 记录日志
 		logEntry := &model.SendLog{
 			SmtpAccountID: &account.ID,
 			ToEmail:       req.To,
@@ -135,21 +148,20 @@ func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
 		}
 
 		if sendErr != nil {
+			detail := fmt.Sprintf("%s: %s", maskEmail(account.Email), sendErr.Error())
 			logEntry.Status = "failed"
-			logEntry.ErrorMessage = sendErr.Error()
-			s.smtpService.UpdateError(account.ID, sendErr.Error())
+			logEntry.ErrorMessage = detail
+			details = append(details, detail)
+			s.smtpService.UpdateError(account.ID, detail)
 			s.db.Create(logEntry)
-
-			// 触发失败Webhook
 			if s.webhookSvc != nil {
 				s.webhookSvc.TriggerSendFailed(logEntry)
 			}
-
-			triedIDs = append(triedIDs, account.ID)
 			continue
 		}
 
 		s.db.Create(logEntry)
+		s.smtpService.ClearError(account.ID)
 		s.smtpService.IncrementUsed(account.ID)
 
 		// 更新限流计数
@@ -171,7 +183,43 @@ func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
 		}, nil
 	}
 
-	return &SendResponse{Success: false, Message: "Failed to send email after all attempts"}, nil
+	message := "Failed to send email"
+	if attempted == 0 {
+		if len(rateLimited) > 0 {
+			message = "No available SMTP account: all active accounts reached daily limits"
+			details = append([]string{fmt.Sprintf("rate limited accounts: %s", strings.Join(rateLimited, ", "))}, details...)
+		} else {
+			message = "No available SMTP account"
+		}
+	} else {
+		message = fmt.Sprintf("All %d SMTP account attempts failed", attempted)
+	}
+
+	logEntry := &model.SendLog{ToEmail: req.To, Subject: req.Subject, Status: "failed", TrackID: trackID, ErrorMessage: message}
+	if err := s.db.Create(logEntry).Error; err != nil {
+		return nil, err
+	}
+
+	return &SendResponse{Success: false, Message: message, LogID: logEntry.ID.String(), Details: details}, nil
+}
+
+// sanitizeFilename 清理附件文件名，防止头部注入和路径遍历
+func sanitizeFilename(name string) string {
+	// 移除路径分隔符
+	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", "_")
+	// 移除可能导致 MIME 头部注入的字符
+	name = strings.ReplaceAll(name, "\"", "_")
+	name = strings.ReplaceAll(name, "\r", "")
+	name = strings.ReplaceAll(name, "\n", "")
+	// 限制长度
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	if name == "" {
+		name = "attachment"
+	}
+	return name
 }
 
 func (s *SendService) buildMessage(from string, req *SendRequest, trackID string) string {
@@ -187,8 +235,10 @@ func (s *SendService) buildMessage(from string, req *SendRequest, trackID string
 
 	hasAttachment := len(req.Attachments) > 0
 
+	// 使用统一的 boundary 变量，避免 header 与 body 不一致
+	var boundary string
 	if hasAttachment {
-		boundary := fmt.Sprintf("boundary_%s", uuid.New().String()[:8])
+		boundary = fmt.Sprintf("boundary_%s", uuid.New().String()[:8])
 		headers.Set("MIME-Version", "1.0")
 		headers.Set("Content-Type", fmt.Sprintf("multipart/mixed; boundary=\"%s\"", boundary))
 	} else {
@@ -215,8 +265,6 @@ func (s *SendService) buildMessage(from string, req *SendRequest, trackID string
 	}
 
 	if hasAttachment {
-		boundary := fmt.Sprintf("boundary_%s", uuid.New().String()[:8])
-
 		// 正文部分
 		buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 		contentType := "text/plain; charset=UTF-8"
@@ -229,10 +277,11 @@ func (s *SendService) buildMessage(from string, req *SendRequest, trackID string
 
 		// 附件部分
 		for _, att := range req.Attachments {
+			safeName := sanitizeFilename(att.Filename)
 			buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 			buf.WriteString(fmt.Sprintf("Content-Type: %s\r\n", att.Type))
 			buf.WriteString("Content-Transfer-Encoding: base64\r\n")
-			buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n\r\n", att.Filename))
+			buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n\r\n", safeName))
 			buf.WriteString(att.Content)
 			buf.WriteString("\r\n")
 		}

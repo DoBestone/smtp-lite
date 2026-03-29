@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/mail"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
 	"strings"
@@ -66,6 +67,32 @@ func (h *RecipientHandler) GroupCreate(c *gin.Context) {
 	}
 
 	c.JSON(201, group)
+}
+
+func (h *RecipientHandler) GroupUpdate(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req CreateGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"name":        req.Name,
+		"description": req.Description,
+	}
+
+	if err := h.recipientSvc.GroupUpdate(id, updates); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "Updated"})
 }
 
 func (h *RecipientHandler) GroupDelete(c *gin.Context) {
@@ -166,7 +193,11 @@ func (h *RecipientHandler) RecipientBatchImport(c *gin.Context) {
 	cleanEmails := []string{}
 	for _, email := range emails {
 		email = strings.TrimSpace(email)
-		if email != "" && strings.Contains(email, "@") {
+		if email == "" {
+			continue
+		}
+		// 使用 net/mail 严格校验邮箱格式
+		if _, err := mail.ParseAddress(email); err == nil {
 			cleanEmails = append(cleanEmails, email)
 		}
 	}
@@ -178,10 +209,10 @@ func (h *RecipientHandler) RecipientBatchImport(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"message":      "Import completed",
-		"total":        len(cleanEmails),
-		"success":      successCount,
-		"blacklisted":  blacklistedCount,
+		"message":     "Import completed",
+		"total":       len(cleanEmails),
+		"success":     successCount,
+		"blacklisted": blacklistedCount,
 	})
 }
 

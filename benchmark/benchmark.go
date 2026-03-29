@@ -55,11 +55,6 @@ func main() {
 }
 
 func login() string {
-	data, _ := json.Marshal(map[string]string{
-		"username": "admin",
-		"password": "admin123",
-	})
-
 	resp, err := http.PostForm(baseURL+"/auth/login", url.Values{
 		"username": {"admin"},
 		"password": {"admin123"},

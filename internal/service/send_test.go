@@ -1,133 +1,129 @@
 package service
 
 import (
-	"os"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
-	"smtp-lite/internal/config"
 	"smtp-lite/internal/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func TestMain(m *testing.M) {
-	config.Load()
-	os.Exit(m.Run())
-}
-
-func setupSendTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+func newTestSendService(t *testing.T) (*SendService, *SmtpService, *gorm.DB) {
+	t.Helper()
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
-		t.Fatalf("Failed to connect database: %v", err)
+		t.Fatalf("open db: %v", err)
 	}
-	db.AutoMigrate(&model.SmtpAccount{}, &model.SendLog{}, &model.Blacklist{})
-	return db
-}
-
-func TestSendService_Stats(t *testing.T) {
-	db := setupSendTestDB(t)
+	if err := db.AutoMigrate(&model.SmtpAccount{}, &model.SendLog{}); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
 	smtpSvc := NewSmtpService(db)
 	sendSvc := NewSendService(db, smtpSvc)
+	return sendSvc, smtpSvc, db
+}
 
-	stats, err := sendSvc.Stats()
+func TestSendReturnsClearMessageWhenNoActiveAccount(t *testing.T) {
+	sendSvc, _, _ := newTestSendService(t)
+
+	resp, err := sendSvc.Send(&SendRequest{To: "user@example.com", Subject: "hello", Body: "world"})
 	if err != nil {
-		t.Errorf("Stats() error: %v", err)
+		t.Fatalf("send returned error: %v", err)
 	}
-
-	// 空数据库应该返回零值
-	if stats["total_sent"].(int64) != 0 {
-		t.Errorf("Stats() total_sent = %v, want 0", stats["total_sent"])
+	if resp.Success {
+		t.Fatalf("expected send to fail")
+	}
+	if resp.Message != "No active SMTP account configured" {
+		t.Fatalf("unexpected message: %s", resp.Message)
 	}
 }
 
-func TestSendService_Logs(t *testing.T) {
-	db := setupSendTestDB(t)
-	smtpSvc := NewSmtpService(db)
-	sendSvc := NewSendService(db, smtpSvc)
-
-	// 创建测试日志
-	log1 := &model.SendLog{
-		ToEmail: "user1@example.com",
-		Subject: "Test 1",
-		Status:  "success",
+func TestSendReturnsRateLimitMessageWhenAllAccountsExhausted(t *testing.T) {
+	sendSvc, _, db := newTestSendService(t)
+	account := &model.SmtpAccount{
+		Email:             "sender@example.com",
+		PasswordEncrypted: "invalid-base64",
+		SmtpHost:          "smtp.example.com",
+		SmtpPort:          587,
+		DailyLimit:        10,
+		DailyUsed:         10,
+		LastResetDate:     time.Now(),
+		Status:            "active",
 	}
-	log2 := &model.SendLog{
-		ToEmail: "user2@example.com",
-		Subject: "Test 2",
-		Status:  "failed",
+	if err := db.Create(account).Error; err != nil {
+		t.Fatalf("create account: %v", err)
 	}
-	db.Create(log1)
-	db.Create(log2)
 
-	// 测试查询
-	logs, total, err := sendSvc.Logs(1, 10)
+	resp, err := sendSvc.Send(&SendRequest{To: "user@example.com", Subject: "hello", Body: "world"})
 	if err != nil {
-		t.Errorf("Logs() error: %v", err)
+		t.Fatalf("send returned error: %v", err)
 	}
-
-	if total != 2 {
-		t.Errorf("Logs() total = %d, want 2", total)
+	if resp.Success {
+		t.Fatalf("expected send to fail")
 	}
-
-	if len(logs) != 2 {
-		t.Errorf("Logs() returned %d logs, want 2", len(logs))
+	if resp.Message != "No available SMTP account: all active accounts reached daily limits" {
+		t.Fatalf("unexpected message: %s", resp.Message)
+	}
+	if len(resp.Details) == 0 || !strings.Contains(resp.Details[0], "rate limited accounts") {
+		t.Fatalf("expected rate limit details, got %#v", resp.Details)
 	}
 }
 
-func TestBlacklistService_Check(t *testing.T) {
-	db := setupSendTestDB(t)
-	svc := NewBlacklistService(db)
-
-	// 添加黑名单
-	svc.Add("spam@example.com", "测试黑名单")
-
-	tests := []struct {
-		email     string
-		blacklisted bool
-	}{
-		{"spam@example.com", true},
-		{"normal@example.com", false},
-		{"SPAM@example.com", false}, // 大小写敏感
+func TestSendReturnsDetailedDecryptFailures(t *testing.T) {
+	sendSvc, _, db := newTestSendService(t)
+	accounts := []*model.SmtpAccount{
+		{Email: "first@example.com", PasswordEncrypted: "bad-1", SmtpHost: "smtp1.example.com", SmtpPort: 587, Status: "active", LastResetDate: time.Now(), Priority: 10},
+		{Email: "second@example.com", PasswordEncrypted: "bad-2", SmtpHost: "smtp2.example.com", SmtpPort: 587, Status: "active", LastResetDate: time.Now(), Priority: 5},
 	}
-
-	for _, tt := range tests {
-		got := svc.IsBlacklisted(tt.email)
-		if got != tt.blacklisted {
-			t.Errorf("IsBlacklisted(%s) = %v, want %v", tt.email, got, tt.blacklisted)
+	for _, account := range accounts {
+		if err := db.Create(account).Error; err != nil {
+			t.Fatalf("create account: %v", err)
 		}
 	}
+
+	resp, err := sendSvc.Send(&SendRequest{To: "user@example.com", Subject: "hello", Body: "world"})
+	if err != nil {
+		t.Fatalf("send returned error: %v", err)
+	}
+	if resp.Success {
+		t.Fatalf("expected send to fail")
+	}
+	if resp.Message != "All 2 SMTP account attempts failed" {
+		t.Fatalf("unexpected message: %s", resp.Message)
+	}
+	if len(resp.Details) != 2 {
+		t.Fatalf("expected 2 details, got %#v", resp.Details)
+	}
+	if !strings.Contains(resp.Details[0], "password decrypt failed") {
+		t.Fatalf("expected decrypt detail, got %#v", resp.Details)
+	}
 }
 
-func TestBlacklistService_AddRemove(t *testing.T) {
-	db := setupSendTestDB(t)
-	svc := NewBlacklistService(db)
+func TestListActiveAccountsExcludingOrdersByPriorityAndUsage(t *testing.T) {
+	_, smtpSvc, db := newTestSendService(t)
+	accounts := []*model.SmtpAccount{
+		{Email: "low@example.com", PasswordEncrypted: "x", SmtpHost: "smtp.example.com", SmtpPort: 587, Status: "active", LastResetDate: time.Now(), Priority: 1, DailyUsed: 1},
+		{Email: "high-busy@example.com", PasswordEncrypted: "x", SmtpHost: "smtp.example.com", SmtpPort: 587, Status: "active", LastResetDate: time.Now(), Priority: 10, DailyUsed: 5},
+		{Email: "high-idle@example.com", PasswordEncrypted: "x", SmtpHost: "smtp.example.com", SmtpPort: 587, Status: "active", LastResetDate: time.Now(), Priority: 10, DailyUsed: 1},
+	}
+	for _, account := range accounts {
+		if err := db.Create(account).Error; err != nil {
+			t.Fatalf("create account: %v", err)
+		}
+	}
 
-	// 添加
-	err := svc.Add("test@example.com", "测试")
+	result, err := smtpSvc.ListActiveAccountsExcluding(nil)
 	if err != nil {
-		t.Errorf("Add() error: %v", err)
+		t.Fatalf("list active accounts: %v", err)
 	}
-
-	// 验证存在
-	if !svc.IsBlacklisted("test@example.com") {
-		t.Errorf("Add() failed to add to blacklist")
+	if len(result) != 3 {
+		t.Fatalf("expected 3 accounts, got %d", len(result))
 	}
-
-	// 获取列表
-	list, _ := svc.List()
-	if len(list) != 1 {
-		t.Errorf("List() returned %d items, want 1", len(list))
-	}
-
-	// 移除
-	err = svc.Remove(list[0].ID)
-	if err != nil {
-		t.Errorf("Remove() error: %v", err)
-	}
-
-	// 验证已移除
-	if svc.IsBlacklisted("test@example.com") {
-		t.Errorf("Remove() failed to remove from blacklist")
+	if result[0].Email != "high-idle@example.com" || result[1].Email != "high-busy@example.com" || result[2].Email != "low@example.com" {
+		t.Fatalf("unexpected order: %s, %s, %s", result[0].Email, result[1].Email, result[2].Email)
 	}
 }

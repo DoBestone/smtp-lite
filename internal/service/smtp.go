@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
@@ -54,6 +55,18 @@ func (s *SmtpService) Update(id uuid.UUID, updates map[string]interface{}) error
 		updates["password_encrypted"] = encrypted
 		delete(updates, "password")
 	}
+	if _, ok := updates["email"]; ok {
+		updates["last_error"] = ""
+	}
+	if _, ok := updates["password_encrypted"]; ok {
+		updates["last_error"] = ""
+	}
+	if _, ok := updates["smtp_host"]; ok {
+		updates["last_error"] = ""
+	}
+	if _, ok := updates["smtp_port"]; ok {
+		updates["last_error"] = ""
+	}
 	return s.db.Model(&model.SmtpAccount{}).Where("id = ?", id).Updates(updates).Error
 }
 
@@ -80,39 +93,25 @@ func (s *SmtpService) Toggle(id uuid.UUID) error {
 }
 
 func (s *SmtpService) TestConnection(host string, port int, email, password string) error {
-	addr := fmt.Sprintf("%s:%d", host, port)
 	auth := smtp.PlainAuth("", email, password, host)
-	var client *smtp.Client
-	var err error
-	if port == 465 {
-		conn, e := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
-		if e != nil {
-			return e
-		}
-		client, err = smtp.NewClient(conn, host)
-	} else {
-		client, err = smtp.Dial(addr)
-		if err == nil {
-			if ok, _ := client.Extension("STARTTLS"); ok {
-				err = client.StartTLS(&tls.Config{ServerName: host})
-			}
-		}
-	}
+	client, err := dialSMTPClient(host, port)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
-	return client.Auth(auth)
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("SMTP auth failed: %w", err)
+	}
+	return nil
 }
 
 func (s *SmtpService) GetAvailableAccount() (*model.SmtpAccount, error) {
 	return s.GetAvailableAccountExcluding(nil)
 }
 
-// GetAvailableAccountExcluding 获取可用账号，排除指定 ID 列表（用于自动故障切换）
-func (s *SmtpService) GetAvailableAccountExcluding(excludeIDs []uuid.UUID) (*model.SmtpAccount, error) {
-	var account model.SmtpAccount
+func (s *SmtpService) ListActiveAccountsExcluding(excludeIDs []uuid.UUID) ([]model.SmtpAccount, error) {
 	today := time.Now().Format("2006-01-02")
+	var accounts []model.SmtpAccount
 
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		query := tx.Where("status = ?", "active")
@@ -120,18 +119,14 @@ func (s *SmtpService) GetAvailableAccountExcluding(excludeIDs []uuid.UUID) (*mod
 			query = query.Where("id NOT IN ?", excludeIDs)
 		}
 
-		// 查找所有活跃账号，包括昨天未重置的（重置后即可用）
-		var accounts []model.SmtpAccount
-		if err := query.Find(&accounts).Error; err != nil {
+		if err := query.Order("priority desc").Order("daily_used asc").Order("created_at asc").Find(&accounts).Error; err != nil {
 			return err
 		}
 
-		// 筛选可用账号：未超限或需要重置的
 		for i := range accounts {
 			a := &accounts[i]
 			needsReset := a.LastResetDate.Format("2006-01-02") != today
 			if needsReset {
-				// 新的一天，重置计数
 				if err := tx.Model(a).Updates(map[string]interface{}{
 					"daily_used":      0,
 					"last_reset_date": today,
@@ -140,16 +135,26 @@ func (s *SmtpService) GetAvailableAccountExcluding(excludeIDs []uuid.UUID) (*mod
 				}
 				a.DailyUsed = 0
 			}
-			if a.DailyLimit == 0 || a.DailyUsed < a.DailyLimit {
-				account = *a
-				return nil
-			}
 		}
 
-		return errors.New("no available SMTP account")
+		return nil
 	})
 
-	return &account, err
+	return accounts, err
+}
+
+// GetAvailableAccountExcluding 获取可用账号，排除指定 ID 列表（用于自动故障切换）
+func (s *SmtpService) GetAvailableAccountExcluding(excludeIDs []uuid.UUID) (*model.SmtpAccount, error) {
+	accounts, err := s.ListActiveAccountsExcluding(excludeIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range accounts {
+		if accounts[i].DailyLimit == 0 || accounts[i].DailyUsed < accounts[i].DailyLimit {
+			return &accounts[i], nil
+		}
+	}
+	return nil, errors.New("no available SMTP account")
 }
 
 func (s *SmtpService) IncrementUsed(id uuid.UUID) error {
@@ -165,16 +170,22 @@ func (s *SmtpService) UpdateError(id uuid.UUID, errMsg string) {
 	s.db.Model(&model.SmtpAccount{}).Where("id = ?", id).Update("last_error", errMsg)
 }
 
+func (s *SmtpService) ClearError(id uuid.UUID) {
+	s.db.Model(&model.SmtpAccount{}).Where("id = ?", id).Update("last_error", "")
+}
+
+// deriveKey 使用 SHA-256 从配置密钥派生固定 32 字节 AES 密钥
+func deriveKey() []byte {
+	key := config.Get().Encryption.Key
+	hash := sha256.Sum256([]byte(key))
+	return hash[:]
+}
+
 // 加密密码
 func encryptPassword(password string) (string, error) {
-	key := config.Get().Encryption.Key
-	if len(key) < 32 {
-		key = key + "                                "[:32-len(key)]
-	} else if len(key) > 32 {
-		key = key[:32]
-	}
+	keyBytes := deriveKey()
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
 		return "", err
 	}
@@ -195,14 +206,9 @@ func encryptPassword(password string) (string, error) {
 
 // 解密密码
 func decryptPassword(encrypted string) (string, error) {
-	key := config.Get().Encryption.Key
-	if len(key) < 32 {
-		key = key + "                                "[:32-len(key)]
-	} else if len(key) > 32 {
-		key = key[:32]
-	}
+	keyBytes := deriveKey()
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
 		return "", err
 	}
@@ -248,49 +254,63 @@ func (s *SmtpService) TestSend(account *model.SmtpAccount, to string) error {
 	return sendMailAuto(account.SmtpHost, account.SmtpPort, auth, account.Email, []string{to}, []byte(msg))
 }
 
-// sendMailAuto 同时支持隐式 TLS（端口 465）和 STARTTLS（端口 587 等）
-func sendMailAuto(host string, port int, auth smtp.Auth, from string, to []string, msg []byte) error {
+func dialSMTPClient(host string, port int) (*smtp.Client, error) {
 	addr := fmt.Sprintf("%s:%d", host, port)
-	var client *smtp.Client
-	var err error
 	if port == 465 {
-		conn, e := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
-		if e != nil {
-			return e
+		conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+		if err != nil {
+			return nil, fmt.Errorf("TLS connect to %s failed: %w", addr, err)
 		}
-		client, err = smtp.NewClient(conn, host)
-	} else {
-		client, err = smtp.Dial(addr)
-		if err == nil {
-			if ok, _ := client.Extension("STARTTLS"); ok {
-				err = client.StartTLS(&tls.Config{ServerName: host})
-			}
+		client, err := smtp.NewClient(conn, host)
+		if err != nil {
+			return nil, fmt.Errorf("create SMTP client failed: %w", err)
+		}
+		return client, nil
+	}
+
+	client, err := smtp.Dial(addr)
+	if err != nil {
+		return nil, fmt.Errorf("SMTP dial %s failed: %w", addr, err)
+	}
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
+			client.Close()
+			return nil, fmt.Errorf("STARTTLS failed: %w", err)
 		}
 	}
+	return client, nil
+}
+
+// sendMailAuto 同时支持隐式 TLS（端口 465）和 STARTTLS（端口 587 等）
+func sendMailAuto(host string, port int, auth smtp.Auth, from string, to []string, msg []byte) error {
+	client, err := dialSMTPClient(host, port)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 	if err = client.Auth(auth); err != nil {
-		return err
+		return fmt.Errorf("SMTP auth failed: %w", err)
 	}
 	if err = client.Mail(from); err != nil {
-		return err
+		return fmt.Errorf("MAIL FROM failed: %w", err)
 	}
 	for _, addr := range to {
 		if err = client.Rcpt(addr); err != nil {
-			return err
+			return fmt.Errorf("RCPT TO %s failed: %w", addr, err)
 		}
 	}
 	w, err := client.Data()
 	if err != nil {
-		return err
+		return fmt.Errorf("DATA command failed: %w", err)
 	}
 	if _, err = w.Write(msg); err != nil {
-		return err
+		return fmt.Errorf("write message failed: %w", err)
 	}
 	if err = w.Close(); err != nil {
-		return err
+		return fmt.Errorf("finalize message failed: %w", err)
 	}
-	return client.Quit()
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("QUIT failed: %w", err)
+	}
+	return nil
 }

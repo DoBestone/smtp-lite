@@ -1,21 +1,8 @@
 package service
 
 import (
-	"os"
 	"testing"
-
-	"smtp-lite/internal/config"
 )
-
-func TestMain(m *testing.M) {
-	// 初始化测试配置
-	config.Load()
-	config.Get().Auth.Username = "admin"
-	config.Get().Auth.Password = "admin123"
-	config.Get().JWT.Secret = "test-secret-key-for-testing-purpose-32b!"
-	config.Get().Encryption.Key = "smtp-lite-test-encryption-32-byte!"
-	os.Exit(m.Run())
-}
 
 func TestAuthService_Login(t *testing.T) {
 

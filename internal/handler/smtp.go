@@ -19,7 +19,7 @@ func NewSmtpHandler(smtpService *service.SmtpService) *SmtpHandler {
 func (h *SmtpHandler) List(c *gin.Context) {
 	accounts, err := h.smtpService.List()
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "Failed to list accounts"})
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *SmtpHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.smtpService.Create(account); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "Failed to create account"})
 		return
 	}
 
@@ -77,7 +77,11 @@ type UpdateSmtpRequest struct {
 }
 
 func (h *SmtpHandler) Update(c *gin.Context) {
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
 
 	var req UpdateSmtpRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -105,8 +109,8 @@ func (h *SmtpHandler) Update(c *gin.Context) {
 		updates["status"] = req.Status
 	}
 
-	if err := h.smtpService.Update(parseUUID(id), updates); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	if err := h.smtpService.Update(id, updates); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update account"})
 		return
 	}
 
@@ -114,10 +118,14 @@ func (h *SmtpHandler) Update(c *gin.Context) {
 }
 
 func (h *SmtpHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
 
-	if err := h.smtpService.Delete(parseUUID(id)); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	if err := h.smtpService.Delete(id); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to delete account"})
 		return
 	}
 
@@ -125,9 +133,13 @@ func (h *SmtpHandler) Delete(c *gin.Context) {
 }
 
 func (h *SmtpHandler) Test(c *gin.Context) {
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
 
-	account, err := h.smtpService.GetByID(parseUUID(id))
+	account, err := h.smtpService.GetByID(id)
 	if err != nil {
 		c.JSON(404, gin.H{"error": "Account not found"})
 		return
@@ -145,14 +157,20 @@ func (h *SmtpHandler) Test(c *gin.Context) {
 		return
 	}
 
+	h.smtpService.ClearError(account.ID)
+
 	c.JSON(200, gin.H{"success": true, "message": "Connection successful"})
 }
 
 func (h *SmtpHandler) Toggle(c *gin.Context) {
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
 
-	if err := h.smtpService.Toggle(parseUUID(id)); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+	if err := h.smtpService.Toggle(id); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to toggle account"})
 		return
 	}
 
@@ -164,7 +182,11 @@ type TestSendRequest struct {
 }
 
 func (h *SmtpHandler) TestSend(c *gin.Context) {
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(400, gin.H{"error": "Invalid ID"})
+		return
+	}
 
 	var req TestSendRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -172,7 +194,7 @@ func (h *SmtpHandler) TestSend(c *gin.Context) {
 		return
 	}
 
-	account, err := h.smtpService.GetByID(parseUUID(id))
+	account, err := h.smtpService.GetByID(id)
 	if err != nil {
 		c.JSON(404, gin.H{"error": "账号不存在"})
 		return
@@ -183,10 +205,7 @@ func (h *SmtpHandler) TestSend(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"success": true, "message": "测试邮件已发送，请检查收件箱"})
-}
+	h.smtpService.ClearError(account.ID)
 
-func parseUUID(s string) uuid.UUID {
-	id, _ := uuid.Parse(s)
-	return id
+	c.JSON(200, gin.H{"success": true, "message": "测试邮件已发送，请检查收件箱"})
 }

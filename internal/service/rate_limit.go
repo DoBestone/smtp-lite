@@ -39,7 +39,7 @@ func (s *RateLimitService) CheckAccountLimit(accountID uuid.UUID) bool {
 	return s.checkLimit(key, cfg.RateLimit.AccountLimit)
 }
 
-// checkLimit 检查限流
+// checkLimit 检查限流（使用原子操作避免竞态条件）
 func (s *RateLimitService) checkLimit(key string, limit int) bool {
 	if limit <= 0 {
 		return true
@@ -64,20 +64,19 @@ func (s *RateLimitService) checkLimit(key string, limit int) bool {
 
 	// 检查是否需要重置
 	if now.After(rateLimit.ResetAt) {
-		rateLimit.Count = 1
-		rateLimit.ResetAt = resetAt
-		s.db.Save(&rateLimit)
+		s.db.Model(&rateLimit).Updates(map[string]interface{}{
+			"count":    1,
+			"reset_at": resetAt,
+		})
 		return true
 	}
 
-	// 检查是否超限
-	if rateLimit.Count >= limit {
-		return false
-	}
+	// 原子操作：仅当 count < limit 时递增，避免 TOCTOU 竞态
+	result := s.db.Model(&model.RateLimit{}).
+		Where("key = ? AND count < ?", key, limit).
+		Update("count", gorm.Expr("count + 1"))
 
-	// 增加计数
-	s.db.Model(&rateLimit).Update("count", gorm.Expr("count + 1"))
-	return true
+	return result.RowsAffected > 0
 }
 
 // IncrementGlobal 增加全局计数

@@ -1,21 +1,13 @@
 package service
 
 import (
-	"os"
 	"testing"
 
-	"smtp-lite/internal/config"
 	"smtp-lite/internal/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func TestMain(m *testing.M) {
-	config.Load()
-	config.Get().Encryption.Key = "smtp-lite-test-encryption-32-byte!"
-	os.Exit(m.Run())
-}
 
 func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -39,9 +31,9 @@ func TestSmtpService_Create(t *testing.T) {
 		{
 			name: "正常创建",
 			account: &model.SmtpAccount{
-				Email:     "test@example.com",
-				SmtpHost:  "smtp.example.com",
-				SmtpPort:  587,
+				Email:      "test@example.com",
+				SmtpHost:   "smtp.example.com",
+				SmtpPort:   587,
 				DailyLimit: 100,
 			},
 			wantErr: false,
@@ -102,10 +94,10 @@ func TestSmtpService_Delete(t *testing.T) {
 
 	// 创建测试账号
 	account := &model.SmtpAccount{
-		Email: "delete@example.com",
+		Email:             "delete@example.com",
 		PasswordEncrypted: "password",
-		SmtpHost: "smtp.example.com",
-		SmtpPort: 587,
+		SmtpHost:          "smtp.example.com",
+		SmtpPort:          587,
 	}
 	svc.Create(account)
 
@@ -130,11 +122,11 @@ func TestSmtpService_Toggle(t *testing.T) {
 
 	// 创建测试账号
 	account := &model.SmtpAccount{
-		Email: "toggle@example.com",
+		Email:             "toggle@example.com",
 		PasswordEncrypted: "password",
-		SmtpHost: "smtp.example.com",
-		SmtpPort: 587,
-		Status: "active",
+		SmtpHost:          "smtp.example.com",
+		SmtpPort:          587,
+		Status:            "active",
 	}
 	svc.Create(account)
 

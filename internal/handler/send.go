@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"strconv"
 	"smtp-lite/internal/service"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +32,7 @@ func (h *SendHandler) Send(c *gin.Context) {
 	if resp.Success {
 		c.JSON(200, resp)
 	} else {
-		c.JSON(400, resp)
+		c.JSON(200, resp)
 	}
 }
 

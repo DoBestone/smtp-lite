@@ -1,21 +1,14 @@
 package service
 
 import (
-	"os"
 	"strings"
 	"testing"
 
-	"smtp-lite/internal/config"
 	"smtp-lite/internal/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-func TestMain(m *testing.M) {
-	config.Load()
-	os.Exit(m.Run())
-}
 
 func setupAPIKeyTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -60,9 +53,9 @@ func TestAPIKeyService_Validate(t *testing.T) {
 	_, fullKey, _ := svc.Create("test-key")
 
 	tests := []struct {
-		name   string
-		key    string
-		want   bool
+		name string
+		key  string
+		want bool
 	}{
 		{"有效Key", fullKey, true},
 		{"无效Key", "sk_invalidkey123456789", false},

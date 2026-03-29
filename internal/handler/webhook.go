@@ -55,6 +55,12 @@ func (h *WebhookHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// SSRF 防护：验证 webhook URL
+	if err := service.ValidateWebhookURL(req.URL); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
 	eventsJSON, _ := json.Marshal(req.Events)
 
 	webhook := &model.Webhook{
@@ -97,6 +103,11 @@ func (h *WebhookHandler) Update(c *gin.Context) {
 		updates["name"] = req.Name
 	}
 	if req.URL != "" {
+		// SSRF 防护：验证 webhook URL
+		if err := service.ValidateWebhookURL(req.URL); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
 		updates["url"] = req.URL
 	}
 	if req.Secret != "" {

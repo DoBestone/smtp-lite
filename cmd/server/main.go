@@ -9,6 +9,7 @@ import (
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
 	"smtp-lite/internal/version"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	// 自动迁移
-	db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&model.SmtpAccount{},
 		&model.APIKey{},
 		&model.SendLog{},
@@ -44,7 +45,9 @@ func main() {
 		&model.SendQueue{},
 		&model.BatchSend{},
 		&model.RateLimit{},
-	)
+	); err != nil {
+		log.Fatal("Failed to auto migrate:", err)
+	}
 
 	// 初始化服务
 	authService := service.NewAuthService()
@@ -85,9 +88,25 @@ func main() {
 
 	// CORS
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, X-API-Key")
+		origin := c.GetHeader("Origin")
+		allowOrigins := cfg.CORS.AllowOrigins
+		allowed := false
+		if len(allowOrigins) == 0 {
+			// 未配置时允许同源请求（不设置 CORS 头）
+			allowed = (origin == "")
+		} else {
+			for _, o := range allowOrigins {
+				if o == "*" || strings.EqualFold(o, origin) {
+					allowed = true
+					break
+				}
+			}
+		}
+		if allowed && origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization, X-API-Key")
+		}
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -117,7 +136,7 @@ func main() {
 				locale = localeService.GetLocale()
 			}
 			c.JSON(200, gin.H{
-				"locale":      locale,
+				"locale":       locale,
 				"translations": localeService.GetAllTranslations(locale),
 			})
 		})
@@ -162,6 +181,7 @@ func main() {
 			// 收件人分组
 			protected.GET("/recipient-groups", recipientHandler.GroupList)
 			protected.POST("/recipient-groups", recipientHandler.GroupCreate)
+			protected.PUT("/recipient-groups/:id", recipientHandler.GroupUpdate)
 
 			// 收件人（通过 query 参数指定分组）
 			protected.GET("/recipients", recipientHandler.RecipientListByGroup)
@@ -246,6 +266,7 @@ func main() {
 			})
 
 			// 系统
+			protected.POST("/system/update-prepare", systemHandler.UpdatePrepare)
 			protected.POST("/system/update", systemHandler.Update)
 		}
 
@@ -265,6 +286,12 @@ func main() {
 
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			// 批量发送数量上限
+			if len(req.Emails) > 1000 {
+				c.JSON(400, gin.H{"error": "Batch size cannot exceed 1000"})
 				return
 			}
 

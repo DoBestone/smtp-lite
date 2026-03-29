@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"smtp-lite/internal/model"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -129,7 +130,10 @@ func (s *QueueService) processTask(task *model.SendQueue) {
 	}
 
 	// 发送
-	resp, _ := s.sendService.Send(req)
+	resp, err := s.sendService.Send(req)
+	if err != nil {
+		resp = &SendResponse{Success: false, Message: err.Error()}
+	}
 
 	if resp.Success {
 		now := time.Now()
@@ -145,10 +149,14 @@ func (s *QueueService) processTask(task *model.SendQueue) {
 		}
 	} else {
 		task.RetryCount++
+		errorMessage := resp.Message
+		if len(resp.Details) > 0 {
+			errorMessage = resp.Message + ": " + strings.Join(resp.Details, "; ")
+		}
 		if task.RetryCount >= 3 {
 			s.db.Model(task).Updates(map[string]interface{}{
 				"status":        "failed",
-				"error_message": resp.Message,
+				"error_message": errorMessage,
 			})
 
 			if task.BatchID != nil {
@@ -265,7 +273,7 @@ func (s *QueueService) updateBatchStats(batchID uuid.UUID, success bool) {
 		if batch.Sent >= batch.Total {
 			now := time.Now()
 			s.db.Model(&batch).Updates(map[string]interface{}{
-				"status":      "completed",
+				"status":       "completed",
 				"completed_at": now,
 			})
 		}

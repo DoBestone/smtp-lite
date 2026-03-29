@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"smtp-lite/internal/config"
 	"smtp-lite/internal/model"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,9 +41,9 @@ func (s *TrackService) InjectTrackPixel(body string, trackID string) string {
 	body = s.injectClickTracking(body, trackID)
 
 	// 插入像素
-	if idx := findLastIndex(body, "</body>"); idx != -1 {
+	if idx := strings.LastIndex(body, "</body>"); idx != -1 {
 		body = body[:idx] + pixel + body[idx:]
-	} else if idx := findLastIndex(body, "</html>"); idx != -1 {
+	} else if idx := strings.LastIndex(body, "</html>"); idx != -1 {
 		body = body[:idx] + pixel + body[idx:]
 	} else {
 		body = body + pixel
@@ -51,7 +52,7 @@ func (s *TrackService) InjectTrackPixel(body string, trackID string) string {
 	return body
 }
 
-func (s *TrackService) injectClickTracking(body string, trackID string) string {
+func (s *TrackService) injectClickTracking(body string, _ string) string {
 	cfg := config.Get()
 	if !cfg.Track.Enabled || cfg.Track.TrackDomain == "" {
 		return body
@@ -61,28 +62,6 @@ func (s *TrackService) injectClickTracking(body string, trackID string) string {
 	// 实际应用中应该用正则表达式更精确地处理
 	// 这里只做示例
 	return body
-}
-
-func findLastIndex(s, substr string) int {
-	lastIdx := -1
-	for {
-		idx := findIndex(s, substr)
-		if idx == -1 {
-			break
-		}
-		lastIdx = idx
-		s = s[idx+1:]
-	}
-	return lastIdx
-}
-
-func findIndex(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }
 
 // RecordOpen 记录打开事件

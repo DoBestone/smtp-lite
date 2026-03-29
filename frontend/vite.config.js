@@ -9,6 +9,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  server: {
+    port: 8091,
+    proxy: {
+      '/api': 'http://localhost:8090',
+      '/track': 'http://localhost:8090'
+    }
+  },
   build: {
     outDir: 'dist'
   }

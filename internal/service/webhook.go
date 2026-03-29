@@ -6,8 +6,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
+	"net/url"
 	"smtp-lite/internal/model"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +24,57 @@ type WebhookService struct {
 
 func NewWebhookService(db *gorm.DB) *WebhookService {
 	return &WebhookService{db: db}
+}
+
+// ValidateWebhookURL 验证 webhook URL 安全性，防止 SSRF
+func ValidateWebhookURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return errors.New("invalid URL")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return errors.New("only http/https URLs are allowed")
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return errors.New("URL must have a host")
+	}
+	// 解析 IP 地址检查私有网段
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		// 无法解析当前不阻止，运行时还有 http client 限制
+		return nil
+	}
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return errors.New("webhook URL must not point to private/loopback addresses")
+		}
+	}
+	return nil
+}
+
+// isPrivateIP 检查 IP 是否为私有 / 回环 / 链路本地地址
+func isPrivateIP(ip net.IP) bool {
+	privateRanges := []struct {
+		network string
+	}{
+		{"127.0.0.0/8"},
+		{"10.0.0.0/8"},
+		{"172.16.0.0/12"},
+		{"192.168.0.0/16"},
+		{"169.254.0.0/16"},
+		{"::1/128"},
+		{"fc00::/7"},
+		{"fe80::/10"},
+	}
+	for _, r := range privateRanges {
+		_, cidr, _ := net.ParseCIDR(r.network)
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *WebhookService) List() ([]model.Webhook, error) {
@@ -90,6 +145,11 @@ type WebhookPayload struct {
 }
 
 func (s *WebhookService) sendWebhook(webhook *model.Webhook, event string, data interface{}) {
+	// SSRF 防护：运行时再次检查
+	if err := ValidateWebhookURL(webhook.URL); err != nil {
+		return
+	}
+
 	payload := WebhookPayload{
 		Event:     event,
 		Data:      data,

@@ -153,7 +153,7 @@ export const actions = {
   },
   
   async loadLogs(page = 1, pageSize = 50) {
-    const res = await axios.get(`${API}/logs?page=${page}&page_size=${pageSize}`, { headers: this.getHeaders() })
+    const res = await axios.get(`${API}/send/logs?page=${page}&page_size=${pageSize}`, { headers: this.getHeaders() })
     store.logs = res.data.logs || []
     return res.data
   },

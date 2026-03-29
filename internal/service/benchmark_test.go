@@ -1,17 +1,8 @@
 package service
 
 import (
-	"os"
 	"testing"
-
-	"smtp-lite/internal/config"
 )
-
-func TestMain(m *testing.M) {
-	config.Load()
-	config.Get().Encryption.Key = "smtp-lite-test-encryption-32-byte!"
-	os.Exit(m.Run())
-}
 
 func BenchmarkAuthService_Login(b *testing.B) {
 	svc := NewAuthService()

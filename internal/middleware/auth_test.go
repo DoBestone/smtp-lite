@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,12 +11,17 @@ import (
 	"smtp-lite/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestMain(m *testing.M) {
 	config.Load()
 	config.Get().Auth.Username = "admin"
-	config.Get().Auth.Password = "admin123"
+	hashed, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("hash test password: %v", err)
+	}
+	config.Get().Auth.Password = string(hashed)
 	config.Get().JWT.Secret = "test-secret-key-for-testing-purpose-32b!"
 	os.Exit(m.Run())
 }
