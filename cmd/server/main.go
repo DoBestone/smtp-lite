@@ -1,14 +1,18 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"smtp-lite/internal/config"
 	"smtp-lite/internal/handler"
 	"smtp-lite/internal/middleware"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
 	"smtp-lite/internal/version"
+	"smtp-lite/web"
 	"strings"
 	"time"
 
@@ -18,6 +22,14 @@ import (
 )
 
 func main() {
+	// --version flag
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Println(version.Version)
+		return
+	}
+
 	// 加载配置
 	cfg := config.Load()
 
@@ -114,8 +126,18 @@ func main() {
 		c.Next()
 	})
 
-	// 静态文件
-	r.Static("/assets", "./frontend/dist/assets")
+	// 内嵌前端：将 web/dist 挂载为前端资源
+	frontendDist, err := fs.Sub(web.Dist, "dist")
+	if err != nil {
+		log.Fatal("failed to access embedded frontend:", err)
+	}
+	httpFS := http.FS(frontendDist)
+	fileServer := http.FileServer(httpFS)
+
+	// 静态资源（/assets/, /favicon.*）
+	r.GET("/assets/*filepath", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/favicon.ico", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/favicon.svg", gin.WrapH(http.StripPrefix("/", fileServer)))
 
 	// 追踪端点（公开，无需认证）
 	r.GET("/track/open/:track_id.png", trackHandler.Open)
@@ -266,6 +288,7 @@ func main() {
 			})
 
 			// 系统
+			protected.GET("/system/update-check", systemHandler.UpdateCheck)
 			protected.POST("/system/update-prepare", systemHandler.UpdatePrepare)
 			protected.POST("/system/update", systemHandler.Update)
 		}
@@ -349,9 +372,19 @@ func main() {
 	queueService.Start()
 	defer queueService.Stop()
 
-	// SPA 路由支持
+	// SPA 路由支持 - 从内嵌 FS 读取 index.html
 	r.NoRoute(func(c *gin.Context) {
-		c.File("./frontend/dist/index.html")
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/track/") {
+			c.JSON(404, gin.H{"error": "not found"})
+			return
+		}
+		data, err := web.Dist.ReadFile("dist/index.html")
+		if err != nil {
+			c.AbortWithStatus(500)
+			return
+		}
+		c.Data(200, "text/html; charset=utf-8", data)
 	})
 
 	// 启动服务器

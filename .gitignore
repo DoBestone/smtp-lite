@@ -23,6 +23,10 @@ config.yaml
 # 前端
 frontend/node_modules/
 frontend/dist/
+web/dist/
+
+# 备份二进制
+*.bak
 
 # macOS
 .DS_Store

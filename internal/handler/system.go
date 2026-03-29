@@ -3,12 +3,15 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"smtp-lite/internal/version"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -42,7 +45,47 @@ func (h *SystemHandler) UpdatePrepare(c *gin.Context) {
 	})
 }
 
-// Update 一键更新：需要确认令牌，优先调用 update.sh，否则内联执行
+// UpdateCheck 查询 GitHub 最新版本，返回是否有可用更新
+func (h *SystemHandler) UpdateCheck(c *gin.Context) {
+	current := version.Version
+
+	type releaseResp struct {
+		TagName string `json:"tag_name"`
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/DoBestone/smtp-lite/releases/latest")
+	if err != nil {
+		c.JSON(200, gin.H{
+			"current":    current,
+			"latest":     "",
+			"has_update": false,
+			"error":      "unable to reach GitHub: " + err.Error(),
+		})
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var rel releaseResp
+	if err := json.Unmarshal(body, &rel); err != nil || rel.TagName == "" {
+		c.JSON(200, gin.H{
+			"current":    current,
+			"latest":     "",
+			"has_update": false,
+			"error":      "invalid GitHub response",
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"current":    current,
+		"latest":     rel.TagName,
+		"has_update": rel.TagName != current,
+	})
+}
+
+// Update 一键更新：需要确认令牌，调用 update.sh --force 下载预编译二进制
 func (h *SystemHandler) Update(c *gin.Context) {
 	var req struct {
 		ConfirmToken string `json:"confirm_token" binding:"required"`
@@ -66,59 +109,29 @@ func (h *SystemHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "更新已启动，服务将在构建完成后自动重启"})
+	wd, err := os.Getwd()
+	if err != nil {
+		c.JSON(500, gin.H{"error": "无法获取工作目录: " + err.Error()})
+		return
+	}
+
+	script := filepath.Join(wd, "update.sh")
+	if _, err := os.Stat(script); err != nil {
+		c.JSON(500, gin.H{"error": "update.sh 不存在，请在服务器上下载最新的 update.sh"})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "更新已启动，服务将在下载完成后自动重启"})
 
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-
-		wd, err := os.Getwd()
-		if err != nil {
-			log.Printf("[update] getwd: %v", err)
-			return
-		}
-
-		// 优先使用 update.sh（更强大的重启检测）
-		script := filepath.Join(wd, "update.sh")
-		if _, err := os.Stat(script); err == nil {
-			log.Println("[update] 使用 update.sh --force")
-			cmd := exec.Command("bash", script, "--force")
-			cmd.Dir = wd
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				log.Printf("[update] update.sh 执行失败: %v，回退到内联更新", err)
-			} else {
-				return // update.sh 自行处理重启
-			}
-		}
-
-		// 回退：内联 git pull → go build → exec 重启
-		log.Println("[update] 内联更新 step 1/3 - git pull")
-		pull := exec.Command("git", "pull")
-		pull.Dir, pull.Stdout, pull.Stderr = wd, os.Stdout, os.Stderr
-		if err := pull.Run(); err != nil {
-			log.Printf("[update] git pull failed: %v", err)
-			return
-		}
-
-		binary, err := os.Executable()
-		if err != nil {
-			log.Printf("[update] get executable: %v", err)
-			return
-		}
-
-		log.Println("[update] 内联更新 step 2/3 - go build")
-		build := exec.Command("go", "build", "-o", binary, "./cmd/server/")
-		build.Dir, build.Stdout, build.Stderr = wd, os.Stdout, os.Stderr
-		if err := build.Run(); err != nil {
-			log.Printf("[update] go build failed: %v", err)
-			return
-		}
-
-		log.Println("[update] 内联更新 step 3/3 - exec 重启")
-		time.Sleep(200 * time.Millisecond)
-		if err := syscall.Exec(binary, os.Args, os.Environ()); err != nil {
-			log.Printf("[update] exec failed: %v", err)
+		log.Println("[update] 调用 update.sh --force")
+		cmd := exec.Command("bash", script, "--force")
+		cmd.Dir = wd
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			log.Printf("[update] update.sh 执行失败: %v", err)
 		}
 	}()
 }
