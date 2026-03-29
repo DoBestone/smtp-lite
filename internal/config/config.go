@@ -15,6 +15,7 @@ import (
 
 type Config struct {
 	Server     ServerConfig     `yaml:"server"`
+	Database   DatabaseConfig   `yaml:"database"`
 	Auth       AuthConfig       `yaml:"auth"`
 	JWT        JWTConfig        `yaml:"jwt"`
 	Encryption EncryptionConfig `yaml:"encryption"`
@@ -22,6 +23,16 @@ type Config struct {
 	Track      TrackConfig      `yaml:"track"`
 	Locale     LocaleConfig     `yaml:"locale"`
 	CORS       CORSConfig       `yaml:"cors"`
+}
+
+type DatabaseConfig struct {
+	Driver   string `yaml:"driver"`   // sqlite 或 mysql
+	Host     string `yaml:"host"`     // MySQL 主机
+	Port     int    `yaml:"port"`     // MySQL 端口
+	Name     string `yaml:"name"`     // 数据库名
+	User     string `yaml:"user"`     // MySQL 用户名
+	Password string `yaml:"password"` // MySQL 密码
+	SQLite   string `yaml:"sqlite"`   // SQLite 文件路径
 }
 
 type ServerConfig struct {
@@ -106,6 +117,14 @@ func Load() *Config {
 				Port: 8090,
 				Mode: "release",
 			},
+			Database: DatabaseConfig{
+				Driver: "sqlite",
+				Host:   "127.0.0.1",
+				Port:   3306,
+				Name:   "smtp_lite",
+				User:   "root",
+				SQLite: "smtp-lite.db",
+			},
 			Auth: AuthConfig{
 				Username: "admin",
 				Password: "admin123",
@@ -165,6 +184,31 @@ func Load() *Config {
 					cfg.RateLimit.GlobalLimit = cfg.RateLimit.GlobalLimit*10 + int(c-'0')
 				}
 			}
+		}
+
+		// 数据库环境变量覆盖
+		if v := os.Getenv("SMTP_DB_DRIVER"); v != "" {
+			cfg.Database.Driver = v
+		}
+		if v := os.Getenv("SMTP_DB_HOST"); v != "" {
+			cfg.Database.Host = v
+		}
+		if v := os.Getenv("SMTP_DB_PORT"); v != "" {
+			cfg.Database.Port = 0
+			for _, c := range v {
+				if c >= '0' && c <= '9' {
+					cfg.Database.Port = cfg.Database.Port*10 + int(c-'0')
+				}
+			}
+		}
+		if v := os.Getenv("SMTP_DB_NAME"); v != "" {
+			cfg.Database.Name = v
+		}
+		if v := os.Getenv("SMTP_DB_USER"); v != "" {
+			cfg.Database.User = v
+		}
+		if v := os.Getenv("SMTP_DB_PASSWORD"); v != "" {
+			cfg.Database.Password = v
 		}
 
 		// 安全检查：自动替换不安全的默认密钥

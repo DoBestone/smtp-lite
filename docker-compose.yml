@@ -17,6 +17,37 @@ services:
       # - SMTP_PASSWORD=your-password
       # - SMTP_JWT_SECRET=your-secret
       # - SMTP_ENCRYPTION_KEY=your-32-byte-encryption-key
+      # 数据库配置（默认 SQLite，可切换为 MySQL）
+      # - SMTP_DB_DRIVER=mysql
+      # - SMTP_DB_HOST=mysql
+      # - SMTP_DB_PORT=3306
+      # - SMTP_DB_NAME=smtp_lite
+      # - SMTP_DB_USER=smtp_lite
+      # - SMTP_DB_PASSWORD=smtp_lite_pass
+    # depends_on:
+    #   mysql:
+    #     condition: service_healthy
+
+  # 可选：MySQL 服务（取消注释以启用）
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: smtp-lite-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root_password
+  #     MYSQL_DATABASE: smtp_lite
+  #     MYSQL_USER: smtp_lite
+  #     MYSQL_PASSWORD: smtp_lite_pass
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
 volumes:
   smtp-data:
+  # mysql-data:

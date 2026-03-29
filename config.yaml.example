@@ -2,6 +2,18 @@ server:
   port: 8090
   mode: release  # debug/release
 
+# 数据库配置
+database:
+  driver: sqlite  # sqlite 或 mysql
+  # SQLite 配置（driver=sqlite 时使用）
+  sqlite: smtp-lite.db
+  # MySQL 配置（driver=mysql 时使用）
+  host: 127.0.0.1
+  port: 3306
+  name: smtp_lite
+  user: root
+  password: ""
+
 # 登录账号配置
 auth:
   username: admin

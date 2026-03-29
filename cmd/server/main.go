@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -39,9 +40,27 @@ func main() {
 	}
 
 	// 初始化数据库
-	db, err := gorm.Open(sqlite.Open("smtp-lite.db"), &gorm.Config{})
-	if err != nil {
-		log.Fatal("Failed to connect database:", err)
+	var db *gorm.DB
+	var err error
+	switch cfg.Database.Driver {
+	case "mysql":
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+			cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		if err != nil {
+			log.Fatal("Failed to connect MySQL database:", err)
+		}
+		log.Println("[database] Using MySQL:", cfg.Database.Host, cfg.Database.Name)
+	default:
+		dbPath := cfg.Database.SQLite
+		if dbPath == "" {
+			dbPath = "smtp-lite.db"
+		}
+		db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+		if err != nil {
+			log.Fatal("Failed to connect SQLite database:", err)
+		}
+		log.Println("[database] Using SQLite:", dbPath)
 	}
 
 	// 自动迁移
