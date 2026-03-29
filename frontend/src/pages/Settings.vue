@@ -98,6 +98,18 @@
         </button>
       </div>
       
+      <!-- 最新版本更新日志 -->
+      <div v-if="latestChangelog && updateStatus === 'available'" class="changelog-preview">
+        <div class="changelog-preview-header">
+          <span class="changelog-tag">{{ latestVersion }}</span>
+          <span class="changelog-date">{{ formatDate(latestPublishedAt) }}</span>
+        </div>
+        <div class="changelog-body" v-html="renderMarkdown(latestChangelog)"></div>
+        <a v-if="latestReleaseUrl" :href="latestReleaseUrl" target="_blank" rel="noopener" class="changelog-link">
+          在 GitHub 上查看 →
+        </a>
+      </div>
+      
       <div v-else-if="updateStatus === 'latest'" class="update-latest">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
           <path d="M20 6L9 17l-5-5" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
@@ -153,7 +165,7 @@
     </div>
     
     <!-- 系统状态 -->
-    <div class="card">
+    <div class="card mb-16">
       <div class="card-header">
         <h3>系统状态</h3>
         <button class="btn-secondary" @click="loadQueueStats">
@@ -173,6 +185,38 @@
             <span class="queue-stat failed">失败 {{ queueStats.failed || 0 }}</span>
           </span>
         </div>
+      </div>
+    </div>
+    
+    <!-- 更新日志 -->
+    <div class="card mb-16">
+      <div class="card-header">
+        <h3>更新日志</h3>
+        <button class="btn-secondary" @click="loadChangelog" :disabled="changelogLoading">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          {{ changelogLoading ? '加载中...' : '刷新' }}
+        </button>
+      </div>
+      <div v-if="changelog.length" class="changelog-list">
+        <div v-for="release in changelog" :key="release.tag_name" class="changelog-item" :class="{ current: release.tag_name === currentVersion }">
+          <div class="changelog-item-header">
+            <div class="changelog-item-left">
+              <span class="changelog-tag" :class="{ 'tag-current': release.tag_name === currentVersion }">{{ release.tag_name }}</span>
+              <span v-if="release.tag_name === currentVersion" class="current-badge">当前版本</span>
+            </div>
+            <span class="changelog-date">{{ formatDate(release.published_at) }}</span>
+          </div>
+          <div v-if="release.body" class="changelog-body" v-html="renderMarkdown(release.body)"></div>
+          <div v-else class="changelog-body text-muted">暂无更新说明</div>
+          <a v-if="release.html_url" :href="release.html_url" target="_blank" rel="noopener" class="changelog-link">
+            在 GitHub 上查看 →
+          </a>
+        </div>
+      </div>
+      <div v-else class="changelog-empty">
+        <p class="text-muted">点击刷新加载更新日志</p>
       </div>
     </div>
     
@@ -202,6 +246,11 @@ export default {
     const updateStep = ref(0)
     const showChangePwd = ref(false)
     const locale = ref(store.locale)
+    const latestChangelog = ref('')
+    const latestPublishedAt = ref('')
+    const latestReleaseUrl = ref('')
+    const changelog = ref([])
+    const changelogLoading = ref(false)
     
     const queueStats = computed(() => store.queueStats)
     
@@ -221,14 +270,51 @@ export default {
       checking.value = true
       updateStatus.value = ''
       try {
-        const res = await axios.get('https://api.github.com/repos/DoBestone/smtp-lite/releases/latest')
-        latestVersion.value = res.data.tag_name
-        updateStatus.value = latestVersion.value === currentVersion.value ? 'latest' : 'available'
+        const res = await axios.get(`${API}/system/update-check`, { headers: actions.getHeaders() })
+        latestVersion.value = res.data.latest
+        latestChangelog.value = res.data.changelog || ''
+        latestPublishedAt.value = res.data.published_at || ''
+        latestReleaseUrl.value = res.data.release_url || ''
+        updateStatus.value = res.data.has_update ? 'available' : 'latest'
       } catch (e) {
         updateStatus.value = 'error'
       } finally {
         checking.value = false
       }
+    }
+    
+    const loadChangelog = async () => {
+      changelogLoading.value = true
+      try {
+        const res = await axios.get(`${API}/system/changelog`, { headers: actions.getHeaders() })
+        changelog.value = res.data.releases || []
+      } catch (e) {
+        actions.showToast('加载更新日志失败', 'error')
+      } finally {
+        changelogLoading.value = false
+      }
+    }
+    
+    const formatDate = (dateStr) => {
+      if (!dateStr) return ''
+      const d = new Date(dateStr)
+      return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    }
+    
+    const renderMarkdown = (text) => {
+      if (!text) return ''
+      return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code>$1</code>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>')
     }
     
     const doUpdate = async () => {
@@ -277,6 +363,7 @@ export default {
     onMounted(() => {
       loadVersion()
       loadQueueStats()
+      loadChangelog()
     })
     
     return {
@@ -290,10 +377,18 @@ export default {
       queueStats,
       showChangePwd,
       locale,
+      latestChangelog,
+      latestPublishedAt,
+      latestReleaseUrl,
+      changelog,
+      changelogLoading,
       checkUpdate,
       doUpdate,
       loadQueueStats,
-      changeLocale
+      loadChangelog,
+      changeLocale,
+      formatDate,
+      renderMarkdown
     }
   }
 }
@@ -553,4 +648,133 @@ export default {
 .queue-stat.processing { color: #3b82f6; }
 .queue-stat.sent { color: #22c55e; }
 .queue-stat.failed { color: #ef4444; }
+
+/* 更新日志预览（检测更新时内联显示） */
+.changelog-preview {
+  padding: 16px 24px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.changelog-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* 更新日志列表 */
+.changelog-list {
+  padding: 8px 0;
+}
+
+.changelog-item {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s;
+}
+
+.changelog-item:last-child {
+  border-bottom: none;
+}
+
+.changelog-item.current {
+  background: #f0f9ff;
+}
+
+.changelog-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.changelog-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.changelog-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.changelog-tag.tag-current {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.current-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 500;
+}
+
+.changelog-date {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.changelog-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #475569;
+  word-break: break-word;
+}
+
+.changelog-body :deep(h2),
+.changelog-body :deep(h3),
+.changelog-body :deep(h4) {
+  margin: 12px 0 6px;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.changelog-body :deep(ul) {
+  margin: 4px 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.changelog-body :deep(li) {
+  margin: 2px 0;
+}
+
+.changelog-body :deep(code) {
+  padding: 1px 5px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #e11d48;
+}
+
+.changelog-body :deep(strong) {
+  color: #1e293b;
+}
+
+.changelog-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.changelog-link:hover {
+  text-decoration: underline;
+}
+
+.changelog-empty {
+  padding: 32px 24px;
+  text-align: center;
+}
 </style>

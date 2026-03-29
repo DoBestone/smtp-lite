@@ -45,12 +45,15 @@ func (h *SystemHandler) UpdatePrepare(c *gin.Context) {
 	})
 }
 
-// UpdateCheck 查询 GitHub 最新版本，返回是否有可用更新
+// UpdateCheck 查询 GitHub 最新版本，返回是否有可用更新及更新日志
 func (h *SystemHandler) UpdateCheck(c *gin.Context) {
 	current := version.Version
 
 	type releaseResp struct {
-		TagName string `json:"tag_name"`
+		TagName     string `json:"tag_name"`
+		Body        string `json:"body"`
+		PublishedAt string `json:"published_at"`
+		HTMLURL     string `json:"html_url"`
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -79,10 +82,40 @@ func (h *SystemHandler) UpdateCheck(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"current":    current,
-		"latest":     rel.TagName,
-		"has_update": rel.TagName != current,
+		"current":      current,
+		"latest":       rel.TagName,
+		"has_update":   rel.TagName != current,
+		"changelog":    rel.Body,
+		"published_at": rel.PublishedAt,
+		"release_url":  rel.HTMLURL,
 	})
+}
+
+// Changelog 获取最近的版本更新日志列表
+func (h *SystemHandler) Changelog(c *gin.Context) {
+	type releaseItem struct {
+		TagName     string `json:"tag_name"`
+		Body        string `json:"body"`
+		PublishedAt string `json:"published_at"`
+		HTMLURL     string `json:"html_url"`
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/DoBestone/smtp-lite/releases?per_page=10")
+	if err != nil {
+		c.JSON(500, gin.H{"error": "无法获取更新日志: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var releases []releaseItem
+	if err := json.Unmarshal(body, &releases); err != nil {
+		c.JSON(500, gin.H{"error": "解析更新日志失败"})
+		return
+	}
+
+	c.JSON(200, gin.H{"releases": releases})
 }
 
 // Update 一键更新：需要确认令牌，调用 update.sh --force 下载预编译二进制

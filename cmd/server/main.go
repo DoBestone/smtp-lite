@@ -308,6 +308,7 @@ func main() {
 
 			// 系统
 			protected.GET("/system/update-check", systemHandler.UpdateCheck)
+			protected.GET("/system/changelog", systemHandler.Changelog)
 			protected.POST("/system/update-prepare", systemHandler.UpdatePrepare)
 			protected.POST("/system/update", systemHandler.Update)
 		}
