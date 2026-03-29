@@ -47,7 +47,9 @@ jobs:
 
       - name: Install cross-compiler (linux/arm64)
         if: matrix.cross_cc != ''
-        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build frontend
         run: |
