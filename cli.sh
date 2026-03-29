@@ -795,7 +795,10 @@ cmd_update() {
   fi
 
   info "拉取代码..."
-  git pull || err "git pull 失败"
+  git fetch origin || err "git fetch 失败"
+  local branch
+  branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
+  git reset --hard "origin/${branch}" || err "git reset 失败"
   ok "代码更新完成"
 
   info "重新编译..."

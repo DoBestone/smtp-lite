@@ -132,8 +132,10 @@ update_source() {
 
   if [ -d ".git" ]; then
     info "拉取最新代码..."
-    git checkout -- . 2>/dev/null || true
-    git pull || err "git pull 失败"
+    git fetch origin || err "git fetch 失败"
+    local branch
+    branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "master")
+    git reset --hard "origin/${branch}" || err "git reset 失败"
   else
     warn "非 Git 仓库，克隆源码到临时目录..."
     local tmp_src
