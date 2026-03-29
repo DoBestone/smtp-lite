@@ -110,7 +110,9 @@ jobs:
           echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
 
       - name: Verify binary
-        if: matrix.goos == runner.os || (matrix.goos == 'linux' && matrix.goarch == 'amd64') || (matrix.goos == 'darwin' && matrix.goarch == 'arm64')
+        if: |
+          (matrix.goos == 'linux' && (matrix.goarch == 'amd64' || matrix.goarch == '386')) ||
+          matrix.goos == 'darwin'
         run: |
           ./${{ env.BINARY_NAME }} --version
 
