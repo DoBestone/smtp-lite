@@ -1,7 +1,12 @@
 <template>
   <div class="app-layout">
+    <!-- 移动端遮罩 -->
+    <transition name="fade">
+      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+    </transition>
+    
     <!-- 侧边栏 -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <!-- Logo -->
       <div class="sidebar-logo">
         <span class="logo-icon">📧</span>
@@ -144,6 +149,11 @@
       <!-- 顶部导航 -->
       <header class="topbar">
         <div class="topbar-left">
+          <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <div class="topbar-right">
@@ -180,7 +190,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { store, actions } from '@/store'
 
@@ -203,10 +213,16 @@ export default {
   setup() {
     const router = useRouter()
     const route = useRoute()
+    const sidebarOpen = ref(false)
     
     const pageTitle = computed(() => pageTitles[route.path] || '')
     const stats = computed(() => store.stats)
     const toast = computed(() => store.toast)
+    
+    // 路由变化时关闭移动端侧边栏
+    watch(() => route.path, () => {
+      sidebarOpen.value = false
+    })
     
     const logout = () => {
       actions.logout()
@@ -217,7 +233,7 @@ export default {
       actions.loadStats()
     })
     
-    return { pageTitle, stats, toast, logout }
+    return { pageTitle, stats, toast, logout, sidebarOpen }
   }
 }
 </script>
@@ -498,6 +514,42 @@ export default {
   transform: translateX(-50%) translateY(20px);
 }
 
+/* 汉堡菜单按钮 - 默认隐藏 */
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: #475569;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.menu-toggle:hover {
+  background: #f1f5f9;
+}
+
+/* 遮罩层 - 默认隐藏 */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 99;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
 /* 响应式 */
 @media (max-width: 1024px) {
   .sidebar {
@@ -527,12 +579,45 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .menu-toggle {
+    display: flex;
+  }
+  
+  .sidebar-overlay {
+    display: block;
+  }
+  
   .sidebar {
+    width: 280px;
     transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
   }
   
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* 侧边栏打开时恢复完整显示 */
+  .sidebar.open .logo-text,
+  .sidebar.open .nav-section-title,
+  .sidebar.open .nav-label,
+  .sidebar.open .sidebar-footer {
+    display: flex;
+  }
+  .sidebar.open .nav-section-title {
+    display: block;
+  }
+  
+  .sidebar.open .sidebar-logo {
+    justify-content: flex-start;
+    padding: 24px 20px;
+  }
+  
+  .sidebar.open .nav-item {
+    justify-content: flex-start;
+    padding: 12px 16px;
   }
   
   .main-wrapper {
@@ -547,8 +632,26 @@ export default {
     padding: 0 16px;
   }
   
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .page-title {
+    font-size: 17px;
+  }
+  
+  .quick-stats {
+    display: none;
+  }
+  
   .action-btn span {
     display: none;
+  }
+  
+  .action-btn {
+    padding: 8px;
   }
 }
 </style>
