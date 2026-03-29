@@ -1438,7 +1438,7 @@ const SMTP_PRESETS = {
 export default {
   data() {
     return {
-      isLoggedIn: false,
+      isLoggedIn: !!localStorage.getItem('token'),
       loginForm: { username: '', password: '' },
       loginLoading: false,
       loginError: '',
