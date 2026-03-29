@@ -339,19 +339,28 @@ export default {
       
       try {
         // 步骤1：获取确认令牌
+        // 旧版本后端（v2.0.0）没有 update-prepare 接口，返回 404 时降级为直接更新
         updateStep.value = 1
         let confirmToken = ''
+        let legacyMode = false  // 是否为旧版兼容模式（无 confirm_token）
+        
         try {
           const prepareRes = await axios.post(`${API}/system/update-prepare`, {}, { headers: actions.getHeaders() })
           confirmToken = prepareRes.data.confirm_token
         } catch (e) {
-          showUpdateError('更新失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
-          return
+          if (e.response && e.response.status === 404) {
+            // 旧版本后端，降级为直接调用（无令牌）
+            legacyMode = true
+          } else {
+            showUpdateError('更新失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
+            return
+          }
         }
         
         // 步骤2：发起更新
         try {
-          await axios.post(`${API}/system/update`, { confirm_token: confirmToken }, { headers: actions.getHeaders() })
+          const body = legacyMode ? {} : { confirm_token: confirmToken }
+          await axios.post(`${API}/system/update`, body, { headers: actions.getHeaders() })
         } catch (e) {
           showUpdateError('更新启动失败', '请在服务器上使用命令行更新：', 'smtp-lite update')
           return
