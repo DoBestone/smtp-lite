@@ -2,28 +2,24 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal">
       <div class="modal-header">
-        <h3>修改账号密码</h3>
+        <h3>修改登录账号</h3>
         <button class="modal-close" @click="$emit('close')">×</button>
       </div>
-      <form @submit.prevent="changePassword">
+      <form @submit.prevent="changeUsername">
         <div class="field">
-          <label>旧密码</label>
-          <input v-model="form.oldPwd" type="password" required />
+          <label>当前密码</label>
+          <input v-model="form.password" type="password" placeholder="请输入当前密码" required />
         </div>
         <div class="field">
-          <label>新密码</label>
-          <input v-model="form.newPwd" type="password" required />
-        </div>
-        <div class="field">
-          <label>确认新密码</label>
-          <input v-model="form.confirmPwd" type="password" required />
+          <label>新用户名</label>
+          <input v-model="form.newUsername" type="text" placeholder="至少 3 位字符" required />
         </div>
         <p v-if="error" class="error-msg">{{ error }}</p>
         <p v-if="success" class="success-msg">{{ success }}</p>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" @click="$emit('close')">取消</button>
           <button type="submit" class="btn-primary" :disabled="loading">
-            {{ loading ? '处理中...' : '保存' }}
+            {{ loading ? '处理中...' : '保存修改' }}
           </button>
         </div>
       </form>
@@ -38,34 +34,30 @@ import { actions } from '@/store'
 import axios from 'axios'
 
 export default {
-  name: 'ChangePasswordModal',
+  name: 'ChangeUsernameModal',
   emits: ['close'],
   setup(props, { emit }) {
     const router = useRouter()
-    const form = ref({ oldPwd: '', newPwd: '', confirmPwd: '' })
+    const form = ref({ password: '', newUsername: '' })
     const loading = ref(false)
     const error = ref('')
     const success = ref('')
-    
-    const changePassword = async () => {
+
+    const changeUsername = async () => {
       error.value = ''
-      if (form.value.newPwd !== form.value.confirmPwd) {
-        error.value = '两次输入的新密码不一致'
+      if (form.value.newUsername.length < 3) {
+        error.value = '用户名至少需要 3 位字符'
         return
       }
-      if (form.value.newPwd.length < 6) {
-        error.value = '新密码至少需要 6 位字符'
-        return
-      }
-      
+
       loading.value = true
       try {
-        await axios.post('/api/v1/auth/change-password', {
-          old_password: form.value.oldPwd,
-          new_password: form.value.newPwd
+        await axios.post('/api/v1/auth/change-username', {
+          password: form.value.password,
+          new_username: form.value.newUsername
         }, { headers: actions.getHeaders() })
-        
-        success.value = '密码修改成功，即将重新登录...'
+
+        success.value = '用户名修改成功，即将重新登录...'
         setTimeout(() => {
           actions.logout()
           router.push('/login')
@@ -77,8 +69,8 @@ export default {
         loading.value = false
       }
     }
-    
-    return { form, loading, error, success, changePassword }
+
+    return { form, loading, error, success, changeUsername }
   }
 }
 </script>

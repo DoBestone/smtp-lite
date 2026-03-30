@@ -97,8 +97,12 @@
         </nav>
 
         <div class="sidebar-footer">
-          <button class="sidebar-footer-btn" title="修改密码" @click="showChangePwd = true; sidebarOpen = false">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <button class="sidebar-footer-btn" title="修改用户名" @click="showChangeUsername = true; sidebarOpen = false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 11l1.5 1.5L21 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            修改用户名
+          </button>
+          <button class="sidebar-footer-btn" title="修改账号密码" @click="showChangePwd = true; sidebarOpen = false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             修改密码
           </button>
           <button class="sidebar-footer-btn logout" @click="logout">
@@ -872,6 +876,10 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10A15.3 15.3 0 018 12a15.3 15.3 0 014-10z" stroke="currentColor" stroke-width="1.8"/></svg>
                   Base URL: <code>{{ baseUrl }}</code>
                 </div>
+                <button class="btn-copy-md" @click="copyDocsMd">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.8"/></svg>
+                  {{ docsMdCopied ? '已复制 ✓' : '复制 MD' }}
+                </button>
               </div>
             </div>
 
@@ -1182,7 +1190,7 @@
       </div>
     </transition>
 
-    <!-- ========== 修改密码弹窗 ========== -->
+    <!-- ========== 修改账号密码弹窗 ========== -->
     <transition name="modal-fade">
       <div v-if="showChangePwd" class="modal-overlay" @click.self="showChangePwd = false">
         <div class="modal-box" style="max-width:400px">
@@ -1217,6 +1225,45 @@
               <button type="button" class="btn-ghost" @click="showChangePwd = false">取消</button>
               <button type="submit" class="btn-primary" :disabled="pwdLoading">
                 <span v-if="!pwdLoading">保存修改</span>
+                <span v-else class="spinner" style="width:16px;height:16px"></span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ========== 修改用户名弹窗 ========== -->
+    <transition name="modal-fade">
+      <div v-if="showChangeUsername" class="modal-overlay" @click.self="showChangeUsername = false">
+        <div class="modal-box" style="max-width:400px">
+          <div class="modal-head">
+            <h3>修改用户名</h3>
+            <button class="modal-close" @click="showChangeUsername = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <form @submit.prevent="changeUsername">
+            <div class="field">
+              <label>新用户名 <span class="required">*</span></label>
+              <input v-model="usernameForm.newUsername" type="text" placeholder="请输入新用户名" required />
+            </div>
+            <div class="field">
+              <label>当前密码 <span class="required">*</span></label>
+              <input v-model="usernameForm.password" type="password" placeholder="验证身份" required />
+            </div>
+            <div v-if="usernameError" class="form-error mt-8">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ usernameError }}
+            </div>
+            <div v-if="usernameSuccess" class="alert alert-success mt-8">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              {{ usernameSuccess }}
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn-ghost" @click="showChangeUsername = false">取消</button>
+              <button type="submit" class="btn-primary" :disabled="usernameLoading">
+                <span v-if="!usernameLoading">保存修改</span>
                 <span v-else class="spinner" style="width:16px;height:16px"></span>
               </button>
             </div>
@@ -1470,8 +1517,14 @@ export default {
       pwdError: '',
       pwdSuccess: '',
       pwdLoading: false,
+      showChangeUsername: false,
+      usernameForm: { newUsername: '', password: '' },
+      usernameError: '',
+      usernameSuccess: '',
+      usernameLoading: false,
       codeTab: 'python',
       copiedKey: '',
+      docsMdCopied: false,
       currentVersion: '',
       latestVersion: '',
       updateStatus: '',
@@ -1619,6 +1672,134 @@ export default {
       navigator.clipboard.writeText(text).then(() => {
         this.copiedKey = key
         setTimeout(() => { this.copiedKey = '' }, 2000)
+      })
+    },
+    copyDocsMd() {
+      const url = this.baseUrl
+      const md = `# SMTP Lite API 对接文档
+
+> Base URL: \`${url}\`
+
+## 01 认证方式
+
+### 登录获取 Token
+
+\`POST\` \`/api/v1/auth/login\`
+
+使用用户名密码获取 JWT Token，用于管理界面 API 调用。
+
+\`\`\`bash
+${this.curlLogin}
+\`\`\`
+
+响应示例：
+
+\`\`\`json
+{ "token": "eyJhbGciOiJIUzI1NiIsInR5...", "username": "admin" }
+\`\`\`
+
+### 修改密码
+
+\`POST\` \`/api/v1/auth/change-password\` 🔒 需要 Token
+
+修改登录密码，修改成功后需要重新登录。
+
+\`\`\`bash
+${this.curlChangePassword}
+\`\`\`
+
+## 02 发送邮件（核心接口）
+
+\`POST\` \`/api/v1/send\` 🔑 Token 或 API Key
+
+统一发信接口，系统自动轮询可用 SMTP 账号发送，支持 HTML 邮件。
+
+### 使用 API Key（推荐）
+
+\`\`\`bash
+${this.curlSendApiKey}
+\`\`\`
+
+### 发送 HTML 邮件
+
+\`\`\`bash
+${this.curlSendHtml}
+\`\`\`
+
+### 请求参数
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| \`to\` | string | 是 | 收件人邮箱 |
+| \`subject\` | string | 是 | 邮件主题 |
+| \`body\` | string | 是 | 邮件正文，is_html=true 时支持 HTML |
+| \`is_html\` | bool | 否 | true 时以 HTML 格式发送（默认 false）|
+| \`from_name\` | string | 否 | 发件人显示名称 |
+| \`cc\` | string[] | 否 | 抄送邮箱列表，收件人可见 |
+| \`bcc\` | string[] | 否 | 密送邮箱列表，收件人不可见 |
+
+### 成功响应
+
+\`\`\`json
+{ "success": true, "message": "Email sent successfully", "used_smtp": "user***@gmail.com" }
+\`\`\`
+
+## 03 代码示例
+
+### Python
+
+\`\`\`python
+${this.codeExamplePython}
+\`\`\`
+
+### Node.js
+
+\`\`\`javascript
+${this.codeExampleNodejs}
+\`\`\`
+
+### PHP
+
+\`\`\`php
+${this.codeExamplePhp}
+\`\`\`
+
+### Go
+
+\`\`\`go
+${this.codeExampleGo}
+\`\`\`
+
+## 04 SMTP 账号管理（需要 Bearer Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | \`/api/v1/smtp-accounts\` | 获取所有 SMTP 账号列表 |
+| POST | \`/api/v1/smtp-accounts\` | 添加新账号：email、password、smtp_host、smtp_port、daily_limit |
+| PUT | \`/api/v1/smtp-accounts/:id\` | 更新账号信息 |
+| DELETE | \`/api/v1/smtp-accounts/:id\` | 删除账号 |
+| POST | \`/api/v1/smtp-accounts/:id/test\` | 测试 SMTP 连通性（不发送邮件）|
+| POST | \`/api/v1/smtp-accounts/:id/test-send\` | 发送测试邮件，请求体：{"to":"email"} |
+| POST | \`/api/v1/smtp-accounts/:id/toggle\` | 切换账号启用/禁用状态 |
+
+## 05 API Key 管理（需要 Bearer Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | \`/api/v1/api-keys\` | 获取所有 API Key 列表（完整 Key 仅创建时展示一次）|
+| POST | \`/api/v1/api-keys\` | 创建 Key：请求体 {"name":"my-app"}，响应含完整 Key |
+| DELETE | \`/api/v1/api-keys/:id\` | 删除指定 API Key |
+
+## 06 日志与统计（需要 Bearer Token）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | \`/api/v1/send/logs?page=1&page_size=50\` | 分页获取发送日志，响应含 logs、total、page |
+| GET | \`/api/v1/stats\` | 统计数据：total_sent、success、failed、today_sent、success_rate |
+`
+      navigator.clipboard.writeText(md).then(() => {
+        this.docsMdCopied = true
+        setTimeout(() => { this.docsMdCopied = false }, 2000)
       })
     },
     async loadVersion() {
@@ -1896,6 +2077,22 @@ export default {
       } catch (e) {
         this.pwdError = e.response?.data?.error || '修改失败'
       } finally { this.pwdLoading = false }
+    },
+    async changeUsername() {
+      this.usernameError = ''; this.usernameSuccess = ''
+      if (!this.usernameForm.newUsername.trim()) { this.usernameError = '用户名不能为空'; return }
+      this.usernameLoading = true
+      try {
+        const res = await axios.post(`${API}/auth/change-username`, {
+          new_username: this.usernameForm.newUsername.trim(),
+          password: this.usernameForm.password,
+        }, { headers: this.getHeaders() })
+        this.usernameSuccess = res.data.message || '用户名修改成功，即将重新登录...'
+        this.usernameForm = { newUsername: '', password: '' }
+        setTimeout(() => { this.showChangeUsername = false; this.logout() }, 1500)
+      } catch (e) {
+        this.usernameError = e.response?.data?.error || '修改失败'
+      } finally { this.usernameLoading = false }
     },
     formatDate(date) {
       if (!date) return '-'
@@ -2972,6 +3169,13 @@ tbody tr:hover { background: #f8f9ff; }
 .copy-btn.copied { background: rgba(34,197,94,0.25); color: #4ade80; border-color: rgba(74,222,128,0.3); }
 /* Version / update */
 .doc-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn-copy-md {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; background: #3b82f6; color: #fff;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background 0.2s; white-space: nowrap;
+}
+.btn-copy-md:hover { background: #2563eb; }
 .version-pill {
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--gray-50); border: 1px solid var(--gray-200);
@@ -3026,6 +3230,7 @@ tbody tr:hover { background: #f8f9ff; }
   .mobile-list { display: none !important; }
 }
 @media (max-width: 991px) {
+  .layout { flex-direction: column; }
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,0.12); }
   .sidebar-overlay { display: block !important; }

@@ -189,8 +189,10 @@ func main() {
 		protected := api.Group("")
 		protected.Use(middleware.AuthRequired())
 		{
-			// 修改密码
+			// 修改账号密码
 			protected.POST("/auth/change-password", authHandler.ChangePassword)
+			// 修改用户名
+			protected.POST("/auth/change-username", authHandler.ChangeUsername)
 
 			// SMTP 账号
 			protected.GET("/smtp-accounts", smtpHandler.List)

@@ -55,3 +55,21 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"message": "密码修改成功，请重新登录"})
 }
+
+type ChangeUsernameRequest struct {
+	Password    string `json:"password" binding:"required"`
+	NewUsername string `json:"new_username" binding:"required"`
+}
+
+func (h *AuthHandler) ChangeUsername(c *gin.Context) {
+	var req ChangeUsernameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "请求格式错误"})
+		return
+	}
+	if err := h.authService.ChangeUsername(req.Password, req.NewUsername); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"message": "用户名修改成功，请重新登录"})
+}

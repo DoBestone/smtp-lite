@@ -10,10 +10,10 @@ export default defineConfig({
     }
   },
   server: {
-    port: 8091,
+    port: 6700,
     proxy: {
-      '/api': 'http://localhost:8090',
-      '/track': 'http://localhost:8090'
+      '/api': 'http://localhost:6710',
+      '/track': 'http://localhost:6710'
     }
   },
   build: {

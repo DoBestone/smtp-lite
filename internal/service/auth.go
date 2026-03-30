@@ -138,6 +138,18 @@ func (s *AuthService) ChangePassword(oldPassword, newPassword string) error {
 	return config.UpdateAuthPassword(newPassword)
 }
 
+// ChangeUsername 修改登录用户名
+func (s *AuthService) ChangeUsername(password, newUsername string) error {
+	// 验证密码
+	if !config.VerifyPassword(password) {
+		return errors.New("密码不正确")
+	}
+	if len(newUsername) < 3 {
+		return errors.New("用户名至少需要 3 位字符")
+	}
+	return config.UpdateAuthUsername(newUsername)
+}
+
 func (s *AuthService) ValidateToken(tokenString string) (*Claims, error) {
 	cfg := config.Get()
 

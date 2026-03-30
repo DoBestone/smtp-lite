@@ -5,6 +5,13 @@
         <h2>API 文档</h2>
         <p class="page-desc">完整的 API 接口文档与代码示例</p>
       </div>
+      <button class="btn-copy-md" @click="copyMarkdown">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+        {{ copyBtnText }}
+      </button>
     </div>
     
     <div class="docs-container">
@@ -85,6 +92,7 @@ export default {
   setup() {
     const lang = ref('python')
     const baseUrl = computed(() => window.location.origin)
+    const copyBtnText = ref('复制 MD')
     
     const codeExamples = {
       python: `import requests
@@ -141,13 +149,118 @@ func main() {
 }`
     }
     
-    return { lang, baseUrl, codeExamples }
+    const copyMarkdown = async () => {
+      const url = baseUrl.value
+      const md = `# SMTP Lite API 文档
+
+## 认证方式
+
+支持两种认证方式：
+
+- **JWT Token** - 通过登录获取，用于管理操作
+- **API Key** - 在 API Key 页面创建，用于发送邮件
+
+## 发送邮件
+
+\`POST\` \`/api/v1/send\`
+
+\`\`\`bash
+curl -X POST ${url}/api/v1/send \\
+  -H "X-API-Key: sk_xxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "to": "user@example.com",
+    "subject": "Hello",
+    "body": "邮件内容",
+    "is_html": false,
+    "from_name": "发件人名称",
+    "track_enabled": false
+  }'
+\`\`\`
+
+## 批量发送
+
+\`POST\` \`/api/v1/send/batch\`
+
+\`\`\`bash
+curl -X POST ${url}/api/v1/send/batch \\
+  -H "X-API-Key: sk_xxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "批量通知",
+    "emails": ["user1@example.com", "user2@example.com"],
+    "subject": "系统通知",
+    "body": "内容",
+    "is_html": true
+  }'
+\`\`\`
+
+## 代码示例
+
+### Python
+
+\`\`\`python
+${codeExamples.python}
+\`\`\`
+
+### Node.js
+
+\`\`\`javascript
+${codeExamples.nodejs}
+\`\`\`
+
+### Go
+
+\`\`\`go
+${codeExamples.go}
+\`\`\`
+`
+      try {
+        await navigator.clipboard.writeText(md)
+        copyBtnText.value = '已复制 ✓'
+        setTimeout(() => { copyBtnText.value = '复制 MD' }, 2000)
+      } catch {
+        copyBtnText.value = '复制失败'
+        setTimeout(() => { copyBtnText.value = '复制 MD' }, 2000)
+      }
+    }
+
+    return { lang, baseUrl, codeExamples, copyBtnText, copyMarkdown }
   }
 }
 </script>
 
 <style scoped>
 @import '@/assets/styles.css';
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-copy-md {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-copy-md:hover {
+  background: #2563eb;
+}
 
 .docs-container { max-width: 900px; }
 

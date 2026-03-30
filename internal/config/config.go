@@ -290,6 +290,23 @@ func UpdateAuthPassword(newPassword string) error {
 	return os.WriteFile("config.yaml", data, 0600)
 }
 
+// UpdateAuthUsername 更新登录用户名并持久化到 config.yaml
+func UpdateAuthUsername(newUsername string) error {
+	mu.Lock()
+	defer mu.Unlock()
+	if cfg == nil {
+		Load()
+	}
+	cfg.Auth.Username = newUsername
+	// 递增 token 版本号，使旧 token 失效
+	IncrementTokenVersion()
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile("config.yaml", data, 0600)
+}
+
 // UpdateLocale 更新语言配置
 func UpdateLocale(locale string) error {
 	mu.Lock()

@@ -588,7 +588,7 @@ smtp-lite/
 ├── internal/
 │   ├── config/config.go        # 配置加载（YAML + 环境变量）
 │   ├── handler/                # HTTP 处理器
-│   │   ├── auth.go             # 登录、修改密码
+│   │   ├── auth.go             # 登录、修改账号密码
 │   │   ├── smtp.go             # SMTP 账号 CRUD
 │   │   ├── api_key.go          # API Key 管理
 │   │   ├── send.go             # 发送、日志、统计

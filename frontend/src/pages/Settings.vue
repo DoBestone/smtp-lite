@@ -35,6 +35,22 @@
         <h3>账户设置</h3>
       </div>
       <div class="settings-list">
+        <div class="settings-item" @click="showChangeUsername = true">
+          <div class="settings-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="settings-content">
+            <div class="settings-title">修改登录账号</div>
+            <div class="settings-desc">更改登录用户名</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="settings-arrow">
+            <path d="M9 18l6-6-6-6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+
         <div class="settings-item" @click="showChangePwd = true">
           <div class="settings-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -43,14 +59,14 @@
             </svg>
           </div>
           <div class="settings-content">
-            <div class="settings-title">修改密码</div>
+            <div class="settings-title">修改账号密码</div>
             <div class="settings-desc">更改登录密码</div>
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="settings-arrow">
             <path d="M9 18l6-6-6-6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        
+
         <div class="settings-item">
           <div class="settings-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -224,7 +240,10 @@
       </div>
     </div>
     
-    <!-- 修改密码弹窗 -->
+    <!-- 修改登录账号弹窗 -->
+    <ChangeUsernameModal v-if="showChangeUsername" @close="showChangeUsername = false" />
+
+    <!-- 修改账号密码弹窗 -->
     <ChangePasswordModal v-if="showChangePwd" @close="showChangePwd = false" />
   </div>
 </template>
@@ -234,12 +253,13 @@ import { ref, computed, onMounted } from 'vue'
 import { store, actions } from '@/store'
 import axios from 'axios'
 import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
+import ChangeUsernameModal from '@/components/ChangeUsernameModal.vue'
 
 const API = '/api/v1'
 
 export default {
   name: 'Settings',
-  components: { ChangePasswordModal },
+  components: { ChangePasswordModal, ChangeUsernameModal },
   setup() {
     const currentVersion = ref('')
     const latestVersion = ref('')
@@ -249,6 +269,7 @@ export default {
     const updateProgress = ref('') // '', 'updating', 'done', 'error'
     const updateStep = ref(0)
     const showChangePwd = ref(false)
+    const showChangeUsername = ref(false)
     const locale = ref(store.locale)
     const latestChangelog = ref('')
     const latestPublishedAt = ref('')
@@ -422,6 +443,7 @@ export default {
       updateErrorCmd,
       queueStats,
       showChangePwd,
+      showChangeUsername,
       locale,
       latestChangelog,
       latestPublishedAt,
