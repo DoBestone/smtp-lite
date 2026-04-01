@@ -122,8 +122,20 @@ collect_config() {
 
   if [ "$db_choice" = "2" ]; then
     DB_DRIVER="mysql"
+    local mysql_exists=false
+    command -v mysql &>/dev/null && mysql_exists=true
+
     local mysql_choice
-    prompt_choice mysql_choice "MySQL 配置方式" "自动安装 MySQL 并创建数据库" "手动输入已有 MySQL 连接信息"
+    if $mysql_exists; then
+      ok "检测到已安装 MySQL: $(mysql --version 2>&1 | head -1)"
+      prompt_choice mysql_choice "MySQL 配置方式" \
+        "自动创建数据库（使用本机 MySQL）" \
+        "手动输入已有 MySQL 连接信息"
+    else
+      prompt_choice mysql_choice "MySQL 配置方式" \
+        "自动安装 MySQL 并创建数据库" \
+        "手动输入已有 MySQL 连接信息"
+    fi
 
     if [ "$mysql_choice" = "1" ]; then
       MYSQL_AUTO_INSTALL=true
@@ -131,7 +143,11 @@ collect_config() {
       DB_PORT="3306"
       DB_NAME="smtp_lite"
       DB_USER="smtp_lite"
-      info "将自动安装 MySQL 并创建数据库"
+      if $mysql_exists; then
+        info "将使用本机 MySQL 自动创建数据库"
+      else
+        info "将自动安装 MySQL 并创建数据库"
+      fi
       prompt_secret DB_PASS "设置 MySQL smtp_lite 用户密码（至少 8 位）"
       while [ ${#DB_PASS} -lt 8 ]; do
         warn "密码至少 8 位"
@@ -175,7 +191,11 @@ collect_config() {
   echo -e "  ${DIM}管理账号 ${N}→ ${C}${ADMIN_USER}${N} / ${DIM}(已设置密码)${N}"
   if [ "$DB_DRIVER" = "mysql" ]; then
     echo -e "  ${DIM}数据库   ${N}→ ${C}MySQL${N} (${DB_HOST}:${DB_PORT}/${DB_NAME})"
-    $MYSQL_AUTO_INSTALL && echo -e "  ${DIM}MySQL    ${N}→ ${G}自动安装${N}"
+    if $MYSQL_AUTO_INSTALL; then
+      command -v mysql &>/dev/null \
+        && echo -e "  ${DIM}MySQL    ${N}→ ${G}已安装，自动创建数据库${N}" \
+        || echo -e "  ${DIM}MySQL    ${N}→ ${G}自动安装并创建数据库${N}"
+    fi
   else
     echo -e "  ${DIM}数据库   ${N}→ ${C}SQLite${N}"
   fi
@@ -183,6 +203,8 @@ collect_config() {
     echo -e "  ${DIM}绑定域名 ${N}→ ${C}${DOMAIN}${N}"
     $USE_NGINX && echo -e "  ${DIM}Nginx    ${N}→ ${G}启用${N}"
     $USE_SSL   && echo -e "  ${DIM}SSL      ${N}→ ${G}Let's Encrypt${N}"
+  else
+    echo -e "  ${DIM}域名     ${N}→ ${Y}未绑定${N}（自行反向代理 → 127.0.0.1:${PORT}）"
   fi
   echo ""
 
@@ -310,7 +332,7 @@ check_node() {
 }
 
 check_nginx() {
-  $USE_NGINX || return
+  $USE_NGINX || return 0
   if command -v nginx &>/dev/null; then
     ok "Nginx $(nginx -v 2>&1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo 'installed')"
     return
@@ -327,7 +349,7 @@ check_nginx() {
 }
 
 check_certbot() {
-  $USE_SSL || return
+  $USE_SSL || return 0
   if command -v certbot &>/dev/null; then
     ok "Certbot $(certbot --version 2>&1 | awk '{print $2}')"
     return
@@ -345,7 +367,7 @@ check_certbot() {
 
 # ── MySQL 安装与配置 ─────────────────────────────────────────
 install_mysql() {
-  $MYSQL_AUTO_INSTALL || return
+  $MYSQL_AUTO_INSTALL || return 0
   step "安装 MySQL"
 
   if command -v mysql &>/dev/null; then
@@ -420,8 +442,8 @@ EOF
 }
 
 verify_mysql_connection() {
-  [ "$DB_DRIVER" = "mysql" ] || return
-  $MYSQL_AUTO_INSTALL && return  # 自动安装的已在上面验证过
+  [ "$DB_DRIVER" = "mysql" ] || return 0
+  $MYSQL_AUTO_INSTALL && return 0  # 自动安装的已在上面验证过
   info "验证 MySQL 连接..."
   if command -v mysql &>/dev/null; then
     if mysql -h "${DB_HOST}" -P "${DB_PORT}" -u "${DB_USER}" -p"${DB_PASS}" -e "USE \`${DB_NAME}\`" 2>/dev/null; then
@@ -616,7 +638,7 @@ EOF
 
 # ── Nginx 配置 ────────────────────────────────────────────────
 setup_nginx() {
-  $USE_NGINX || return
+  $USE_NGINX || return 0
   step "配置 Nginx"
 
   if [ "$OS" = "darwin" ]; then
@@ -901,6 +923,9 @@ print_done() {
   echo -e "${G}  ║${N}  运行日志  ${INSTALL_DIR}/smtp-lite.log"
   if $USE_SSL; then
     echo -e "${G}  ║${N}  SSL 证书  ${G}Let's Encrypt（90天自动续期）${N}"
+  fi
+  if ! $USE_DOMAIN; then
+    echo -e "${G}  ║${N}  反向代理  ${Y}请自行配置${N} → 127.0.0.1:${PORT}"
   fi
   echo -e "${G}  ╠══════════════════════════════════════════════╣${N}"
   echo -e "${G}  ║${N}  管理工具  ${W}smtp-lite${N}  (交互式菜单)"
