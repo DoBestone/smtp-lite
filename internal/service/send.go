@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/smtp"
 	"net/textproto"
 	"smtp-lite/internal/model"
@@ -132,7 +133,8 @@ func (s *SendService) Send(req *SendRequest) (*SendResponse, error) {
 
 		from := account.Email
 		if req.FromName != "" {
-			from = fmt.Sprintf("%s <%s>", req.FromName, account.Email)
+			encoded := mime.QEncoding.Encode("UTF-8", req.FromName)
+			from = fmt.Sprintf("%s <%s>", encoded, account.Email)
 		}
 
 		msg := s.buildMessage(from, req, trackID)
@@ -231,7 +233,7 @@ func (s *SendService) buildMessage(from string, req *SendRequest, trackID string
 	if len(req.CC) > 0 {
 		headers.Set("Cc", strings.Join(req.CC, ", "))
 	}
-	headers.Set("Subject", req.Subject)
+	headers.Set("Subject", mime.QEncoding.Encode("UTF-8", req.Subject))
 
 	hasAttachment := len(req.Attachments) > 0
 

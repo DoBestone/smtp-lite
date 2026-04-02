@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/smtp"
 	"time"
 
@@ -248,7 +249,7 @@ func (s *SmtpService) TestSend(account *model.SmtpAccount, to string) error {
 	)
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
-		account.Email, to, subject, body,
+		account.Email, to, mime.QEncoding.Encode("UTF-8", subject), body,
 	)
 	auth := smtp.PlainAuth("", account.Email, password, account.SmtpHost)
 	return sendMailAuto(account.SmtpHost, account.SmtpPort, auth, account.Email, []string{to}, []byte(msg))
