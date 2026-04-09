@@ -13,12 +13,29 @@ import (
 	"path/filepath"
 	"runtime"
 	"smtp-lite/internal/version"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// isForceUpdateVersion 判断版本号是否为强制更新版本。
+// 规则：第三位（patch）为 0 或 5 的倍数时属于强制更新版本，例如 v1.5.0、v1.5.5。
+func isForceUpdateVersion(ver string) bool {
+	v := strings.TrimPrefix(ver, "v")
+	parts := strings.Split(v, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return false
+	}
+	return patch%5 == 0
+}
 
 type SystemHandler struct {
 	mu           sync.Mutex
@@ -84,10 +101,12 @@ func (h *SystemHandler) UpdateCheck(c *gin.Context) {
 		return
 	}
 
+	hasUpdate := rel.TagName != current
 	c.JSON(200, gin.H{
 		"current":      current,
 		"latest":       rel.TagName,
-		"has_update":   rel.TagName != current,
+		"has_update":   hasUpdate,
+		"force_update": hasUpdate && isForceUpdateVersion(rel.TagName),
 		"changelog":    rel.Body,
 		"published_at": rel.PublishedAt,
 		"release_url":  rel.HTMLURL,

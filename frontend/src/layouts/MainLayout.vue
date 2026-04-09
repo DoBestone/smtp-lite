@@ -180,6 +180,59 @@
       </main>
     </div>
     
+    <!-- 强制更新弹窗（不可关闭） -->
+    <div v-if="forceUpdate.show" class="force-update-overlay">
+      <div class="force-update-modal">
+        <!-- 更新中 -->
+        <div v-if="forceUpdate.progress === 'updating'" class="force-update-body">
+          <div class="force-spinner"></div>
+          <h3>正在更新...</h3>
+          <p class="force-hint">请勿关闭页面，更新完成后将自动刷新</p>
+          <div class="force-steps">
+            <div :class="['force-step', { done: forceUpdate.step >= 1 }]">1. 下载更新</div>
+            <div :class="['force-step', { done: forceUpdate.step >= 2 }]">2. 替换文件</div>
+            <div :class="['force-step', { done: forceUpdate.step >= 3 }]">3. 重启服务</div>
+          </div>
+        </div>
+        <!-- 更新完成 -->
+        <div v-else-if="forceUpdate.progress === 'done'" class="force-update-body">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#22c55e" stroke-width="2"/>
+            <path d="M8 12l3 3 5-5" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <h3 style="color:#166534">更新完成！</h3>
+          <p class="force-hint">页面将在 3 秒后自动刷新</p>
+        </div>
+        <!-- 更新失败 -->
+        <div v-else-if="forceUpdate.progress === 'error'" class="force-update-body">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="2"/>
+            <path d="M15 9l-6 6M9 9l6 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <h3 style="color:#991b1b">更新失败</h3>
+          <p class="force-hint">请在服务器上使用命令行更新：</p>
+          <div class="force-cmd-box"><code>smtp-lite update</code></div>
+          <button class="force-retry-btn" @click="doForceUpdate">重试更新</button>
+        </div>
+        <!-- 等待确认 -->
+        <div v-else class="force-update-body">
+          <div class="force-icon-warn">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="12" y1="9" x2="12" y2="13" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+              <line x1="12" y1="17" x2="12.01" y2="17" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>发现重要更新</h3>
+          <p class="force-version">{{ forceUpdate.latest }}</p>
+          <p class="force-hint">此版本为强制更新版本，需要立即更新后才能继续使用</p>
+          <button class="force-update-btn" @click="doForceUpdate" :disabled="forceUpdate.progress === 'updating'">
+            立即更新
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast -->
     <transition name="toast-fade">
       <div v-if="toast.show" class="toast" :class="toast.type">
@@ -190,9 +243,12 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { store, actions } from '@/store'
+import axios from 'axios'
+
+const API = '/api/v1'
 
 const pageTitles = {
   '/smtp': 'SMTP 账号管理',
@@ -214,26 +270,112 @@ export default {
     const router = useRouter()
     const route = useRoute()
     const sidebarOpen = ref(false)
-    
+
     const pageTitle = computed(() => pageTitles[route.path] || '')
     const stats = computed(() => store.stats)
     const toast = computed(() => store.toast)
-    
+
+    // 强制更新状态
+    const forceUpdate = reactive({
+      show: false,
+      latest: '',
+      progress: '', // '', 'updating', 'done', 'error'
+      step: 0
+    })
+
+    // 自动检测强制更新
+    const checkForceUpdate = async () => {
+      try {
+        const res = await axios.get(`${API}/system/update-check`, { headers: actions.getHeaders() })
+        if (res.data.force_update) {
+          forceUpdate.show = true
+          forceUpdate.latest = res.data.latest
+        }
+      } catch (e) {
+        // 检测失败静默忽略，不影响正常使用
+      }
+    }
+
+    // 执行强制更新
+    const doForceUpdate = async () => {
+      forceUpdate.progress = 'updating'
+      forceUpdate.step = 0
+
+      try {
+        // 步骤1：获取确认令牌
+        forceUpdate.step = 1
+        let confirmToken = ''
+        let legacyMode = false
+
+        try {
+          const prepareRes = await axios.post(`${API}/system/update-prepare`, {}, { headers: actions.getHeaders() })
+          confirmToken = prepareRes.data.confirm_token
+        } catch (e) {
+          if (e.response && e.response.status === 404) {
+            legacyMode = true
+          } else {
+            forceUpdate.progress = 'error'
+            return
+          }
+        }
+
+        // 步骤2：发起更新
+        try {
+          const body = legacyMode ? {} : { confirm_token: confirmToken }
+          await axios.post(`${API}/system/update`, body, { headers: actions.getHeaders() })
+        } catch (e) {
+          forceUpdate.progress = 'error'
+          return
+        }
+        forceUpdate.step = 2
+
+        // 步骤3：轮询等待新版本
+        const target = forceUpdate.latest
+        const startTime = Date.now()
+        const timeout = 180000
+
+        const poll = async () => {
+          if (Date.now() - startTime > timeout) {
+            forceUpdate.progress = 'error'
+            return
+          }
+          try {
+            const res = await axios.get(`${API}/version`)
+            if (res.data.version === target) {
+              forceUpdate.step = 3
+              forceUpdate.progress = 'done'
+              setTimeout(() => window.location.reload(), 3000)
+              return
+            }
+          } catch (e) {
+            // 服务重启中，继续轮询
+          }
+          setTimeout(poll, 2000)
+        }
+
+        poll()
+      } catch (e) {
+        forceUpdate.progress = 'error'
+      }
+    }
+
     // 路由变化时关闭移动端侧边栏
     watch(() => route.path, () => {
       sidebarOpen.value = false
     })
-    
+
     const logout = () => {
       actions.logout()
       router.push('/login')
     }
-    
+
     onMounted(() => {
       actions.loadStats()
+      // 登录后自动检测是否需要强制更新
+      checkForceUpdate()
     })
-    
-    return { pageTitle, stats, toast, logout, sidebarOpen }
+
+    return { pageTitle, stats, toast, logout, sidebarOpen, forceUpdate, doForceUpdate }
   }
 }
 </script>
@@ -548,6 +690,143 @@ export default {
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
+}
+
+/* ========== 强制更新弹窗 ========== */
+.force-update-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.force-update-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.force-update-body {
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.force-update-body h3 {
+  margin: 16px 0 8px;
+  font-size: 20px;
+  color: #1e293b;
+}
+
+.force-version {
+  display: inline-block;
+  padding: 4px 14px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+.force-hint {
+  color: #64748b;
+  font-size: 14px;
+  margin: 8px 0 20px;
+  line-height: 1.5;
+}
+
+.force-update-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.force-update-btn:hover {
+  opacity: 0.9;
+}
+
+.force-update-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.force-retry-btn {
+  padding: 10px 28px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.force-retry-btn:hover {
+  background: #e2e8f0;
+}
+
+.force-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: force-spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes force-spin {
+  to { transform: rotate(360deg); }
+}
+
+.force-steps {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.force-step {
+  padding: 5px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.force-step.done {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.force-cmd-box {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin: 0 0 16px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: #334155;
+  user-select: all;
+}
+
+.force-icon-warn {
+  margin-bottom: 4px;
 }
 
 /* 响应式 */

@@ -41,6 +41,7 @@
 | 📦 零依赖部署 | SQLite 数据库，单二进制文件运行 |
 | 🐳 Docker 支持 | 提供 Dockerfile + docker-compose |
 | 🔁 一键更新 | 网页端检测新版本，一键完成 git pull + 重编译 + 重启 |
+| 🚨 强制更新 | 版本号第三位为 0 或 5 时自动弹出不可关闭弹窗，强制更新到最新版本 |
 | 🛠️ CLI 管理 | 终端命令 `smtp-lite` 管理服务、配置、SSL、备份等 20+ 功能 |
 | ☁️ Cloudflare 兼容 | SSL 证书使用 webroot 文件验证，兼容 CF 代理模式 |
 
@@ -446,9 +447,15 @@ Content-Type: application/json
 
 ## 版本更新
 
+### 强制更新机制
+
+版本号格式 `x.y.z`，当最新版本的第三位（z）为 **0** 或 **5** 时（如 `v2.3.0`、`v2.3.5`），系统自动识别为**强制更新版本**。
+
+用户登录后系统自动检测版本，若发现强制更新版本，将弹出**不可关闭的全局弹窗**，用户必须完成更新后才能继续使用。
+
 ### 方式一：网页端一键更新
 
-登录 → 进入「API 文档」页 → 点击「**检测更新**」→ 发现新版本时点击「**立即更新**」。
+登录 → 系统设置 → 点击「**检测更新**」→ 发现新版本时点击「**立即更新**」。
 
 前端实时展示进度（git pull → go build → 重启），完成后自动刷新页面。
 
@@ -601,7 +608,7 @@ smtp-lite/
 │   ├── model/model.go          # 数据模型（GORM + SQLite）
 │   ├── middleware/auth.go      # Token / API Key 认证中间件
 │   └── version/version.go     # 版本常量
-├── frontend/src/App.vue        # Vue 3 前端（单文件）
+├── frontend/src/               # Vue 3 前端（Vue Router + 组件化）
 ├── install.sh                  # 交互式安装脚本
 ├── cli.sh                      # CLI 管理工具（smtp-lite 命令）
 ├── update.sh                   # 一键更新脚本

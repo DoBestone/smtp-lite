@@ -1,4 +1,4 @@
 package version
 
 // Version 当前版本号，发布新版本时同步修改此处并在 GitHub 创建对应 tag/release
-const Version = "v2.2.1"
+const Version = "v2.3.0"
