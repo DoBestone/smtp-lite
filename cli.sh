@@ -46,10 +46,16 @@ yaml_get() {
   grep -E "^\s*${key}:" "$file" 2>/dev/null | head -1 | sed "s/.*${key}:\s*//" | sed 's/#.*//' | xargs
 }
 
+sed_escape() {
+  printf '%s\n' "$1" | sed 's/[&/\|]/\\&/g'
+}
+
 yaml_set() {
   local key="$1" value="$2" file="${3:-$CONFIG}"
+  local escaped
+  escaped=$(sed_escape "$value")
   if grep -qE "^\s*${key}:" "$file" 2>/dev/null; then
-    sed -i.bak "s|^\(\s*${key}:\).*|\1 ${value}|" "$file"
+    sed -i.bak "s|^\(\s*${key}:\).*|\1 ${escaped}|" "$file"
     rm -f "${file}.bak"
   else
     echo "  ${key}: ${value}" >> "$file"

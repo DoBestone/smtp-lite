@@ -140,28 +140,27 @@ func (h *SystemHandler) Changelog(c *gin.Context) {
 	c.JSON(200, gin.H{"releases": releases})
 }
 
-// Update 一键更新：confirm_token 可选（兼容旧版前端），调用 update.sh 或 Go 自更新
+// Update 一键更新：必须提供 confirm_token，调用 update.sh 或 Go 自更新
 func (h *SystemHandler) Update(c *gin.Context) {
 	var req struct {
-		ConfirmToken string `json:"confirm_token"` // 可选：旧版客户端不发送令牌
+		ConfirmToken string `json:"confirm_token" binding:"required"`
 	}
-	// 允许空 body 或无 confirm_token（忽略绑定错误）
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": "confirm_token 是必须的，请先调用 /system/update-prepare 获取令牌"})
+		return
+	}
 
-	// 若提供了 confirm_token，则验证；否则直接放行（兼容旧版客户端）
-	if req.ConfirmToken != "" {
-		h.mu.Lock()
-		validToken := h.confirmToken != "" &&
-			req.ConfirmToken == h.confirmToken &&
-			time.Now().Before(h.tokenExpiry)
-		h.confirmToken = ""
-		h.tokenExpiry = time.Time{}
-		h.mu.Unlock()
+	h.mu.Lock()
+	validToken := h.confirmToken != "" &&
+		req.ConfirmToken == h.confirmToken &&
+		time.Now().Before(h.tokenExpiry)
+	h.confirmToken = ""
+	h.tokenExpiry = time.Time{}
+	h.mu.Unlock()
 
-		if !validToken {
-			c.JSON(403, gin.H{"error": "确认令牌无效或已过期，请重新获取"})
-			return
-		}
+	if !validToken {
+		c.JSON(403, gin.H{"error": "确认令牌无效或已过期，请重新获取"})
+		return
 	}
 
 	wd, err := os.Getwd()

@@ -23,6 +23,15 @@ func (h *SendHandler) Send(c *gin.Context) {
 		return
 	}
 
+	if len(req.To) > 254 {
+		c.JSON(400, gin.H{"error": "email address too long (max 254 chars)"})
+		return
+	}
+	if len(req.Subject) > 998 {
+		c.JSON(400, gin.H{"error": "subject too long (max 998 chars)"})
+		return
+	}
+
 	resp, err := h.sendService.Send(&req)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
@@ -32,7 +41,7 @@ func (h *SendHandler) Send(c *gin.Context) {
 	if resp.Success {
 		c.JSON(200, resp)
 	} else {
-		c.JSON(200, resp)
+		c.JSON(422, resp)
 	}
 }
 

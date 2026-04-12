@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"log"
 	"smtp-lite/internal/model"
 	"strings"
 	"time"
@@ -38,8 +39,20 @@ func (s *QueueService) Start() {
 	if s.running {
 		return
 	}
+	s.recoverStaleTasks()
 	s.running = true
 	go s.processLoop()
+}
+
+// recoverStaleTasks 恢复因崩溃卡在 processing 状态的任务
+func (s *QueueService) recoverStaleTasks() {
+	threshold := time.Now().Add(-5 * time.Minute)
+	result := s.db.Model(&model.SendQueue{}).
+		Where("status = ? AND updated_at < ?", "processing", threshold).
+		Update("status", "pending")
+	if result.RowsAffected > 0 {
+		log.Printf("[queue] recovered %d stale processing tasks", result.RowsAffected)
+	}
 }
 
 // Stop 停止队列处理
@@ -105,16 +118,27 @@ func (s *QueueService) processTask(task *model.SendQueue) {
 	// 解析CC/BCC
 	var cc, bcc []string
 	if task.CC != "" {
-		json.Unmarshal([]byte(task.CC), &cc)
+		if err := json.Unmarshal([]byte(task.CC), &cc); err != nil {
+			log.Printf("[queue] task %s: failed to parse CC: %v", task.ID, err)
+		}
 	}
 	if task.BCC != "" {
-		json.Unmarshal([]byte(task.BCC), &bcc)
+		if err := json.Unmarshal([]byte(task.BCC), &bcc); err != nil {
+			log.Printf("[queue] task %s: failed to parse BCC: %v", task.ID, err)
+		}
 	}
 
 	// 解析附件
 	var attachments []Attachment
 	if task.Attachments != "" {
-		json.Unmarshal([]byte(task.Attachments), &attachments)
+		if err := json.Unmarshal([]byte(task.Attachments), &attachments); err != nil {
+			log.Printf("[queue] task %s: failed to parse attachments: %v", task.ID, err)
+			s.db.Model(task).Updates(map[string]interface{}{
+				"status":        "failed",
+				"error_message": "corrupted attachments data",
+			})
+			return
+		}
 	}
 
 	// 构建发送请求

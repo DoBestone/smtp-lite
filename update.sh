@@ -94,6 +94,28 @@ update_binary() {
 
   chmod +x "$TMP_BINARY"
 
+  # SHA256 校验
+  CHECKSUM_URL="${DOWNLOAD_URL}.sha256"
+  EXPECTED_SHA=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null | awk '{print $1}')
+  if [ -n "$EXPECTED_SHA" ]; then
+    if command -v sha256sum &>/dev/null; then
+      ACTUAL_SHA=$(sha256sum "$TMP_BINARY" | awk '{print $1}')
+    elif command -v shasum &>/dev/null; then
+      ACTUAL_SHA=$(shasum -a 256 "$TMP_BINARY" | awk '{print $1}')
+    else
+      warn "sha256sum/shasum 不可用，跳过校验"
+      ACTUAL_SHA="$EXPECTED_SHA"
+    fi
+    if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+      rm -f "$TMP_BINARY"
+      err "SHA256 校验失败！预期: ${EXPECTED_SHA}，实际: ${ACTUAL_SHA}"
+      return 1
+    fi
+    ok "SHA256 校验通过"
+  else
+    warn "未找到 .sha256 校验文件，跳过校验"
+  fi
+
   # 验证可执行
   if ! "$TMP_BINARY" --version &>/dev/null; then
     warn "下载的二进制文件无法执行"

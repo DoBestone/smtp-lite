@@ -126,7 +126,7 @@ func (g *RecipientGroup) BeforeCreate(tx *gorm.DB) error {
 type Recipient struct {
 	ID        uuid.UUID `gorm:"type:char(36);primaryKey" json:"id"`
 	GroupID   uuid.UUID `gorm:"type:char(36);not null;index" json:"group_id"`
-	Email     string    `gorm:"type:varchar(255);not null" json:"email"`
+	Email     string    `gorm:"type:varchar(255);not null;index" json:"email"`
 	Name      string    `gorm:"type:varchar(100)" json:"name"`      // 收件人名称
 	Status    string    `gorm:"default:'active'" json:"status"`     // active/blacklisted
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`

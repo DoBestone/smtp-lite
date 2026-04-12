@@ -322,37 +322,44 @@ func (s *SendService) Logs(page, pageSize int) ([]model.SendLog, int64, error) {
 }
 
 func (s *SendService) Stats() (map[string]interface{}, error) {
-	var totalSent, successCount, failedCount int64
-	var todaySent int64
-	var openedCount, clickedCount int64
+	todayStart := time.Now().Truncate(24 * time.Hour)
 
-	s.db.Model(&model.SendLog{}).Count(&totalSent)
-	s.db.Model(&model.SendLog{}).Where("status = ?", "success").Count(&successCount)
-	s.db.Model(&model.SendLog{}).Where("status = ?", "failed").Count(&failedCount)
+	var result struct {
+		TotalSent    int64
+		SuccessCount int64
+		FailedCount  int64
+		TodaySent    int64
+		OpenedCount  int64
+		ClickedCount int64
+	}
 
-	today := time.Now().Format("2006-01-02")
-	s.db.Model(&model.SendLog{}).Where("DATE(created_at) = ?", today).Count(&todaySent)
-
-	s.db.Model(&model.SendLog{}).Where("opened = ?", true).Count(&openedCount)
-	s.db.Model(&model.SendLog{}).Where("clicked = ?", true).Count(&clickedCount)
+	s.db.Model(&model.SendLog{}).Select(
+		"COUNT(*) as total_sent, "+
+			"SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count, "+
+			"SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count, "+
+			"SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as today_sent, "+
+			"SUM(CASE WHEN opened = 1 THEN 1 ELSE 0 END) as opened_count, "+
+			"SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END) as clicked_count",
+		todayStart,
+	).Scan(&result)
 
 	var successRate, openRate, clickRate float64
-	if totalSent > 0 {
-		successRate = float64(successCount) / float64(totalSent) * 100
+	if result.TotalSent > 0 {
+		successRate = float64(result.SuccessCount) / float64(result.TotalSent) * 100
 	}
-	if successCount > 0 {
-		openRate = float64(openedCount) / float64(successCount) * 100
-		clickRate = float64(clickedCount) / float64(successCount) * 100
+	if result.SuccessCount > 0 {
+		openRate = float64(result.OpenedCount) / float64(result.SuccessCount) * 100
+		clickRate = float64(result.ClickedCount) / float64(result.SuccessCount) * 100
 	}
 
 	return map[string]interface{}{
-		"total_sent":   totalSent,
-		"success":      successCount,
-		"failed":       failedCount,
-		"today_sent":   todaySent,
+		"total_sent":   result.TotalSent,
+		"success":      result.SuccessCount,
+		"failed":       result.FailedCount,
+		"today_sent":   result.TodaySent,
 		"success_rate": successRate,
-		"opened":       openedCount,
-		"clicked":      clickedCount,
+		"opened":       result.OpenedCount,
+		"clicked":      result.ClickedCount,
 		"open_rate":    openRate,
 		"click_rate":   clickRate,
 	}, nil

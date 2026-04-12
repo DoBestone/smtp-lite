@@ -211,6 +211,23 @@ func Load() *Config {
 			cfg.Database.Password = v
 		}
 
+		// 向后兼容：补充旧配置文件缺失的字段默认值
+		if cfg.Server.Port == 0 {
+			cfg.Server.Port = 8090
+		}
+		if cfg.JWT.ExpireHours == 0 {
+			cfg.JWT.ExpireHours = 168
+		}
+		if cfg.Database.SQLite == "" {
+			cfg.Database.SQLite = "smtp-lite.db"
+		}
+		if cfg.Database.Driver == "" {
+			cfg.Database.Driver = "sqlite"
+		}
+		if cfg.Locale.Default == "" {
+			cfg.Locale.Default = "zh-CN"
+		}
+
 		// 安全检查：自动替换不安全的默认密钥
 		configChanged := false
 		if isInsecureDefault(cfg.JWT.Secret) {

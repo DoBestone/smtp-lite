@@ -20,7 +20,7 @@ func NewExportService(db *gorm.DB) *ExportService {
 	return &ExportService{db: db}
 }
 
-// ExportSendLogsCSV 导出发送日志为CSV
+// ExportSendLogsCSV 导出发送日志为CSV（分批读取，降低内存占用）
 func (s *ExportService) ExportSendLogsCSV(start, end *time.Time) ([]byte, error) {
 	query := s.db.Model(&model.SendLog{}).Order("created_at desc")
 
@@ -31,36 +31,35 @@ func (s *ExportService) ExportSendLogsCSV(start, end *time.Time) ([]byte, error)
 		query = query.Where("created_at <= ?", end)
 	}
 
-	var logs []model.SendLog
-	if err := query.Limit(50000).Find(&logs).Error; err != nil {
-		return nil, err
-	}
-
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
-
-	// 写入头部
 	writer.Write([]string{"ID", "收件人", "主题", "状态", "错误信息", "打开", "点击", "创建时间"})
 
-	// 写入数据
-	for _, log := range logs {
-		writer.Write([]string{
-			log.ID.String(),
-			log.ToEmail,
-			log.Subject,
-			log.Status,
-			log.ErrorMessage,
-			fmt.Sprintf("%v", log.Opened),
-			fmt.Sprintf("%v", log.Clicked),
-			log.CreatedAt.Format("2006-01-02 15:04:05"),
-		})
+	var logs []model.SendLog
+	result := query.Limit(50000).FindInBatches(&logs, 500, func(tx *gorm.DB, batch int) error {
+		for _, log := range logs {
+			writer.Write([]string{
+				log.ID.String(),
+				log.ToEmail,
+				log.Subject,
+				log.Status,
+				log.ErrorMessage,
+				fmt.Sprintf("%v", log.Opened),
+				fmt.Sprintf("%v", log.Clicked),
+				log.CreatedAt.Format("2006-01-02 15:04:05"),
+			})
+		}
+		return nil
+	})
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
 	writer.Flush()
 	return buf.Bytes(), nil
 }
 
-// ExportSendLogsJSON 导出发送日志为JSON
+// ExportSendLogsJSON 导出发送日志为JSON（分批读取）
 func (s *ExportService) ExportSendLogsJSON(start, end *time.Time) ([]byte, error) {
 	query := s.db.Model(&model.SendLog{}).Order("created_at desc")
 
@@ -71,12 +70,17 @@ func (s *ExportService) ExportSendLogsJSON(start, end *time.Time) ([]byte, error
 		query = query.Where("created_at <= ?", end)
 	}
 
-	var logs []model.SendLog
-	if err := query.Limit(50000).Find(&logs).Error; err != nil {
-		return nil, err
+	var allLogs []model.SendLog
+	var batch []model.SendLog
+	result := query.Limit(50000).FindInBatches(&batch, 500, func(tx *gorm.DB, b int) error {
+		allLogs = append(allLogs, batch...)
+		return nil
+	})
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
-	return json.MarshalIndent(logs, "", "  ")
+	return json.MarshalIndent(allLogs, "", "  ")
 }
 
 // ExportSmtpAccountsCSV 导出SMTP账号为CSV

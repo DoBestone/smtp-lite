@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -10,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
+	"net"
 	"net/smtp"
 	"time"
 
@@ -182,7 +185,10 @@ func deriveKey() []byte {
 	return hash[:]
 }
 
-// 加密密码
+// gcmPrefix 用于区分 GCM 加密数据和旧的 CFB 加密数据
+var gcmPrefix = []byte("gcm:")
+
+// encryptPassword 使用 AES-GCM 认证加密
 func encryptPassword(password string) (string, error) {
 	keyBytes := deriveKey()
 
@@ -191,49 +197,90 @@ func encryptPassword(password string) (string, error) {
 		return "", err
 	}
 
-	plaintext := []byte(password)
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-	iv := ciphertext[:aes.BlockSize]
-
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
 		return "", err
 	}
 
-	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
 
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	ciphertext := aead.Seal(nonce, nonce, []byte(password), nil)
+
+	// 前缀 "gcm:" 用于解密时区分新旧格式
+	result := append(gcmPrefix, ciphertext...)
+	return base64.StdEncoding.EncodeToString(result), nil
 }
 
-// 解密密码
+// decryptPassword 自动检测 GCM 或 CFB 格式并解密（向后兼容旧数据）
 func decryptPassword(encrypted string) (string, error) {
 	keyBytes := deriveKey()
+
+	raw, err := base64.StdEncoding.DecodeString(encrypted)
+	if err != nil {
+		return "", err
+	}
 
 	block, err := aes.NewCipher(keyBytes)
 	if err != nil {
 		return "", err
 	}
 
-	ciphertext, err := base64.StdEncoding.DecodeString(encrypted)
+	// GCM 格式：前缀 "gcm:" + nonce + ciphertext+tag
+	if bytes.HasPrefix(raw, gcmPrefix) {
+		data := raw[len(gcmPrefix):]
+		aead, err := cipher.NewGCM(block)
+		if err != nil {
+			return "", err
+		}
+		if len(data) < aead.NonceSize() {
+			return "", errors.New("gcm ciphertext too short")
+		}
+		nonce := data[:aead.NonceSize()]
+		ciphertext := data[aead.NonceSize():]
+		plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+		if err != nil {
+			return "", err
+		}
+		return string(plaintext), nil
+	}
+
+	// 旧 CFB 格式：IV (16 bytes) + ciphertext
+	if len(raw) < aes.BlockSize {
+		return "", errors.New("ciphertext too short")
+	}
+	iv := raw[:aes.BlockSize]
+	ciphertext := raw[aes.BlockSize:]
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(ciphertext, ciphertext)
+	return string(ciphertext), nil
+}
+
+// DecryptAccountPassword 解密 SMTP 账号密码，如果是旧 CFB 格式则自动迁移为 GCM
+func (s *SmtpService) DecryptAccountPassword(account *model.SmtpAccount) (string, error) {
+	raw, err := base64.StdEncoding.DecodeString(account.PasswordEncrypted)
 	if err != nil {
 		return "", err
 	}
 
-	if len(ciphertext) < aes.BlockSize {
-		return "", errors.New("ciphertext too short")
+	password, err := decryptPassword(account.PasswordEncrypted)
+	if err != nil {
+		return "", err
 	}
 
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
+	// 自动迁移：如果是旧 CFB 格式，重加密为 GCM 并写回数据库
+	if !bytes.HasPrefix(raw, gcmPrefix) {
+		if newEncrypted, err := encryptPassword(password); err == nil {
+			s.db.Model(&model.SmtpAccount{}).
+				Where("id = ?", account.ID).
+				Update("password_encrypted", newEncrypted)
+			log.Printf("[security] SMTP account %s password migrated from CFB to GCM", account.ID)
+		}
+	}
 
-	stream := cipher.NewCFBDecrypter(block, iv)
-	stream.XORKeyStream(ciphertext, ciphertext)
-
-	return string(ciphertext), nil
-}
-
-func (s *SmtpService) DecryptAccountPassword(account *model.SmtpAccount) (string, error) {
-	return decryptPassword(account.PasswordEncrypted)
+	return password, nil
 }
 
 // TestSend 通过指定账号发送测试邮件到指定地址
@@ -256,22 +303,33 @@ func (s *SmtpService) TestSend(account *model.SmtpAccount, to string) error {
 }
 
 func dialSMTPClient(host string, port int) (*smtp.Client, error) {
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	if port == 465 {
-		conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+		rawConn, err := net.DialTimeout("tcp", addr, 30*time.Second)
 		if err != nil {
-			return nil, fmt.Errorf("TLS connect to %s failed: %w", addr, err)
+			return nil, fmt.Errorf("TCP connect to %s failed: %w", addr, err)
+		}
+		conn := tls.Client(rawConn, &tls.Config{ServerName: host})
+		if err := conn.Handshake(); err != nil {
+			rawConn.Close()
+			return nil, fmt.Errorf("TLS handshake to %s failed: %w", addr, err)
 		}
 		client, err := smtp.NewClient(conn, host)
 		if err != nil {
+			conn.Close()
 			return nil, fmt.Errorf("create SMTP client failed: %w", err)
 		}
 		return client, nil
 	}
 
-	client, err := smtp.Dial(addr)
+	rawConn, err := net.DialTimeout("tcp", addr, 30*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("SMTP dial %s failed: %w", addr, err)
+	}
+	client, err := smtp.NewClient(rawConn, host)
+	if err != nil {
+		rawConn.Close()
+		return nil, fmt.Errorf("create SMTP client failed: %w", err)
 	}
 	if ok, _ := client.Extension("STARTTLS"); ok {
 		if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {

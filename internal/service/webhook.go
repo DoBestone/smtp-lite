@@ -2,11 +2,14 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -118,7 +121,10 @@ func (s *WebhookService) Trigger(event string, data interface{}) {
 		// 检查事件是否在订阅列表中
 		var events []string
 		if webhook.Events != "" {
-			json.Unmarshal([]byte(webhook.Events), &events)
+			if err := json.Unmarshal([]byte(webhook.Events), &events); err != nil {
+				log.Printf("[webhook] webhook %s: failed to parse events: %v", webhook.ID, err)
+				continue
+			}
 		}
 
 		shouldTrigger := false
@@ -145,8 +151,8 @@ type WebhookPayload struct {
 }
 
 func (s *WebhookService) sendWebhook(webhook *model.Webhook, event string, data interface{}) {
-	// SSRF 防护：运行时再次检查
 	if err := ValidateWebhookURL(webhook.URL); err != nil {
+		log.Printf("[webhook] SSRF blocked for webhook %s: %v", webhook.ID, err)
 		return
 	}
 
@@ -158,32 +164,76 @@ func (s *WebhookService) sendWebhook(webhook *model.Webhook, event string, data 
 
 	body, err := json.Marshal(payload)
 	if err != nil {
+		log.Printf("[webhook] marshal failed for webhook %s: %v", webhook.ID, err)
 		return
 	}
 
+	maxAttempts := 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = s.doWebhookRequest(webhook, event, body)
+		if err == nil {
+			return
+		}
+		log.Printf("[webhook] attempt %d/%d failed for webhook %s (%s): %v",
+			attempt, maxAttempts, webhook.ID, webhook.URL, err)
+		if attempt < maxAttempts {
+			time.Sleep(time.Duration(attempt*attempt) * time.Second)
+		}
+	}
+	log.Printf("[webhook] all %d attempts failed for webhook %s event=%s", maxAttempts, webhook.ID, event)
+}
+
+// safeDialContext 防止 DNS 重绑定攻击：连接前检查解析后的 IP 是否为内网地址
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	for _, ip := range ips {
+		if isPrivateIP(ip.IP) {
+			return nil, fmt.Errorf("webhook target resolves to private IP: %s", ip.IP)
+		}
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses found for %s", host)
+	}
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+}
+
+func (s *WebhookService) doWebhookRequest(webhook *model.Webhook, event string, body []byte) error {
 	req, err := http.NewRequest("POST", webhook.URL, bytes.NewReader(body))
 	if err != nil {
-		return
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
-	// 添加签名
 	if webhook.Secret != "" {
 		mac := hmac.New(sha256.New, []byte(webhook.Secret))
 		mac.Write(body)
-		signature := hex.EncodeToString(mac.Sum(nil))
-		req.Header.Set("X-Signature", signature)
+		req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
 	}
-
 	req.Header.Set("X-Event", event)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: safeDialContext,
+		},
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // TriggerSendSuccess 发送成功事件

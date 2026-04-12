@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"smtp-lite/internal/config"
 	"smtp-lite/internal/handler"
 	"smtp-lite/internal/middleware"
@@ -14,6 +17,7 @@ import (
 	"smtp-lite/internal/version"
 	"smtp-lite/web"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -116,6 +120,12 @@ func main() {
 
 	// 路由
 	r := gin.Default()
+
+	// 请求体大小限制：10MB
+	r.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+		c.Next()
+	})
 
 	// CORS
 	r.Use(func(c *gin.Context) {
@@ -303,6 +313,11 @@ func main() {
 					c.JSON(400, gin.H{"error": err.Error()})
 					return
 				}
+				validLocales := map[string]bool{"zh-CN": true, "en-US": true}
+				if !validLocales[req.Locale] {
+					c.JSON(400, gin.H{"error": "unsupported locale, valid: zh-CN, en-US"})
+					return
+				}
 				localeService.SetLocale(req.Locale)
 				config.UpdateLocale(req.Locale)
 				c.JSON(200, gin.H{"message": "Locale updated"})
@@ -392,7 +407,6 @@ func main() {
 
 	// 启动队列处理
 	queueService.Start()
-	defer queueService.Stop()
 
 	// SPA 路由支持 - 从内嵌 FS 读取 index.html
 	r.NoRoute(func(c *gin.Context) {
@@ -409,8 +423,50 @@ func main() {
 		c.Data(200, "text/html; charset=utf-8", data)
 	})
 
-	// 启动服务器
+	// 启动服务器（优雅关闭）
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
-	log.Printf("SMTP Lite %s starting on %s", version.Version, addr)
-	log.Fatal(r.Run(addr))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
+	}
+
+	// 定期清理过期限流记录
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				rateLimitService.CleanupExpired()
+			case <-quit:
+				return
+			}
+		}
+	}()
+
+	go func() {
+		log.Printf("SMTP Lite %s starting on %s", version.Version, addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen error: %v", err)
+		}
+	}()
+
+	// 等待退出信号
+	signal.Reset(syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	queueService.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited cleanly")
 }
