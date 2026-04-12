@@ -2,6 +2,7 @@ package handler
 
 import (
 	"smtp-lite/internal/service"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,32 @@ func NewBlacklistHandler(blacklistSvc *service.BlacklistService) *BlacklistHandl
 }
 
 func (h *BlacklistHandler) List(c *gin.Context) {
+	// 支持可选分页：有 page 参数时分页，否则返回全部（向后兼容）
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		page, _ := strconv.Atoi(pageStr)
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 || pageSize > 100 {
+			pageSize = 50
+		}
+		list, total, err := h.blacklistSvc.ListPaged(page, pageSize)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{
+			"items":      list,
+			"total":      total,
+			"page":       page,
+			"page_size":  pageSize,
+			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
+		})
+		return
+	}
+
 	list, err := h.blacklistSvc.List()
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})

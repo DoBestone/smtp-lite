@@ -21,6 +21,16 @@ func (s *BlacklistService) List() ([]model.Blacklist, error) {
 	return list, err
 }
 
+// ListPaged 分页获取黑名单
+func (s *BlacklistService) ListPaged(page, pageSize int) ([]model.Blacklist, int64, error) {
+	var list []model.Blacklist
+	var total int64
+	s.db.Model(&model.Blacklist{}).Count(&total)
+	offset := (page - 1) * pageSize
+	err := s.db.Order("created_at desc").Offset(offset).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
 func (s *BlacklistService) Add(email, reason string) error {
 	// 检查是否已存在
 	var existing model.Blacklist

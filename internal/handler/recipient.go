@@ -4,6 +4,7 @@ import (
 	"net/mail"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -110,7 +111,7 @@ func (h *RecipientHandler) GroupDelete(c *gin.Context) {
 	c.JSON(200, gin.H{"message": "Deleted"})
 }
 
-// RecipientListByGroup 通过 query 参数获取收件人列表
+// RecipientListByGroup 通过 query 参数获取收件人列表（支持可选分页）
 func (h *RecipientHandler) RecipientListByGroup(c *gin.Context) {
 	groupIDStr := c.Query("group_id")
 	if groupIDStr == "" {
@@ -121,6 +122,32 @@ func (h *RecipientHandler) RecipientListByGroup(c *gin.Context) {
 	groupID, err := uuid.Parse(groupIDStr)
 	if err != nil {
 		c.JSON(400, gin.H{"error": "Invalid group ID"})
+		return
+	}
+
+	// 支持可选分页
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		page, _ := strconv.Atoi(pageStr)
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 || pageSize > 100 {
+			pageSize = 50
+		}
+		recipients, total, err := h.recipientSvc.RecipientListPaged(groupID, page, pageSize)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{
+			"items":      recipients,
+			"total":      total,
+			"page":       page,
+			"page_size":  pageSize,
+			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
+		})
 		return
 	}
 

@@ -21,6 +21,16 @@ func (s *TemplateService) List() ([]model.EmailTemplate, error) {
 	return templates, err
 }
 
+// ListPaged 分页获取模板
+func (s *TemplateService) ListPaged(page, pageSize int) ([]model.EmailTemplate, int64, error) {
+	var templates []model.EmailTemplate
+	var total int64
+	s.db.Model(&model.EmailTemplate{}).Count(&total)
+	offset := (page - 1) * pageSize
+	err := s.db.Order("created_at desc").Offset(offset).Limit(pageSize).Find(&templates).Error
+	return templates, total, err
+}
+
 func (s *TemplateService) GetByID(id uuid.UUID) (*model.EmailTemplate, error) {
 	var template model.EmailTemplate
 	err := s.db.First(&template, id).Error

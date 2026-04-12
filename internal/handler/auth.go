@@ -1,17 +1,19 @@
 package handler
 
 import (
+	"fmt"
 	"smtp-lite/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+	authService  *service.AuthService
+	auditService *service.AuditService
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService *service.AuthService, auditService *service.AuditService) *AuthHandler {
+	return &AuthHandler{authService: authService, auditService: auditService}
 }
 
 type LoginRequest struct {
@@ -28,8 +30,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	token, err := h.authService.Login(req.Username, req.Password)
 	if err != nil {
+		if h.auditService != nil {
+			h.auditService.Log("login_failed", req.Username, c.ClientIP(), "登录失败")
+		}
 		c.JSON(401, gin.H{"error": "Invalid credentials"})
 		return
+	}
+
+	if h.auditService != nil {
+		h.auditService.Log("login", req.Username, c.ClientIP(), "登录成功")
 	}
 
 	c.JSON(200, gin.H{
@@ -53,6 +62,10 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("change_password", fmt.Sprint(username), c.ClientIP(), "修改密码")
+	}
 	c.JSON(200, gin.H{"message": "密码修改成功，请重新登录"})
 }
 
@@ -70,6 +83,10 @@ func (h *AuthHandler) ChangeUsername(c *gin.Context) {
 	if err := h.authService.ChangeUsername(req.Password, req.NewUsername); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
+	}
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("change_username", fmt.Sprint(username), c.ClientIP(), "用户名改为: "+req.NewUsername)
 	}
 	c.JSON(200, gin.H{"message": "用户名修改成功，请重新登录"})
 }

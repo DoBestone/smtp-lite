@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
 
@@ -9,11 +10,12 @@ import (
 )
 
 type SmtpHandler struct {
-	smtpService *service.SmtpService
+	smtpService  *service.SmtpService
+	auditService *service.AuditService
 }
 
-func NewSmtpHandler(smtpService *service.SmtpService) *SmtpHandler {
-	return &SmtpHandler{smtpService: smtpService}
+func NewSmtpHandler(smtpService *service.SmtpService, auditService *service.AuditService) *SmtpHandler {
+	return &SmtpHandler{smtpService: smtpService, auditService: auditService}
 }
 
 func (h *SmtpHandler) List(c *gin.Context) {
@@ -61,6 +63,11 @@ func (h *SmtpHandler) Create(c *gin.Context) {
 	if err := h.smtpService.Create(account); err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create account"})
 		return
+	}
+
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("smtp_create", fmt.Sprint(username), c.ClientIP(), "创建 SMTP 账号: "+req.Email)
 	}
 
 	account.PasswordEncrypted = ""
@@ -114,6 +121,11 @@ func (h *SmtpHandler) Update(c *gin.Context) {
 		return
 	}
 
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("smtp_update", fmt.Sprint(username), c.ClientIP(), "更新 SMTP 账号: "+id.String())
+	}
+
 	c.JSON(200, gin.H{"message": "Updated"})
 }
 
@@ -127,6 +139,11 @@ func (h *SmtpHandler) Delete(c *gin.Context) {
 	if err := h.smtpService.Delete(id); err != nil {
 		c.JSON(500, gin.H{"error": "Failed to delete account"})
 		return
+	}
+
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("smtp_delete", fmt.Sprint(username), c.ClientIP(), "删除 SMTP 账号: "+id.String())
 	}
 
 	c.JSON(200, gin.H{"message": "Deleted"})

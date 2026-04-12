@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"smtp-lite/internal/model"
 	"smtp-lite/internal/service"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,6 +19,31 @@ func NewWebhookHandler(webhookSvc *service.WebhookService) *WebhookHandler {
 }
 
 func (h *WebhookHandler) List(c *gin.Context) {
+	pageStr := c.Query("page")
+	if pageStr != "" {
+		page, _ := strconv.Atoi(pageStr)
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 || pageSize > 100 {
+			pageSize = 50
+		}
+		webhooks, total, err := h.webhookSvc.ListPaged(page, pageSize)
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{
+			"items":      webhooks,
+			"total":      total,
+			"page":       page,
+			"page_size":  pageSize,
+			"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
+		})
+		return
+	}
+
 	webhooks, err := h.webhookSvc.List()
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})

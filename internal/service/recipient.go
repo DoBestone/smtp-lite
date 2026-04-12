@@ -22,11 +22,22 @@ func (s *RecipientService) GroupList() ([]model.RecipientGroup, error) {
 	return groups, err
 }
 
-// GroupGetByID 获取分组详情
+// GroupGetByID 获取分组详情（不预加载收件人，使用分页接口获取）
 func (s *RecipientService) GroupGetByID(id uuid.UUID) (*model.RecipientGroup, error) {
 	var group model.RecipientGroup
-	err := s.db.Preload("Recipients").First(&group, id).Error
+	err := s.db.First(&group, id).Error
 	return &group, err
+}
+
+// RecipientListPaged 分页获取分组内的收件人
+func (s *RecipientService) RecipientListPaged(groupID uuid.UUID, page, pageSize int) ([]model.Recipient, int64, error) {
+	var recipients []model.Recipient
+	var total int64
+	s.db.Model(&model.Recipient{}).Where("group_id = ?", groupID).Count(&total)
+	offset := (page - 1) * pageSize
+	err := s.db.Where("group_id = ?", groupID).Order("created_at desc").
+		Offset(offset).Limit(pageSize).Find(&recipients).Error
+	return recipients, total, err
 }
 
 // GroupCreate 创建分组

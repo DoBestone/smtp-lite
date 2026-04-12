@@ -183,6 +183,18 @@ func (s *QueueService) processTask(task *model.SendQueue) {
 				"error_message": errorMessage,
 			})
 
+			// 永久失败：触发 webhook 通知
+			if s.webhookSvc != nil {
+				failLog := &model.SendLog{
+					ToEmail:      task.ToEmail,
+					Subject:      task.Subject,
+					Status:       "failed",
+					ErrorMessage: errorMessage,
+				}
+				failLog.ID = task.ID
+				s.webhookSvc.TriggerSendFailed(failLog)
+			}
+
 			if task.BatchID != nil {
 				s.updateBatchStats(*task.BatchID, false)
 			}

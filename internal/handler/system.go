@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"smtp-lite/internal/service"
 	"smtp-lite/internal/version"
 	"strconv"
 	"strings"
@@ -41,9 +42,12 @@ type SystemHandler struct {
 	mu           sync.Mutex
 	confirmToken string
 	tokenExpiry  time.Time
+	auditService *service.AuditService
 }
 
-func NewSystemHandler() *SystemHandler { return &SystemHandler{} }
+func NewSystemHandler(auditService *service.AuditService) *SystemHandler {
+	return &SystemHandler{auditService: auditService}
+}
 
 // UpdatePrepare 生成更新确认令牌（两步确认，防止误操作或 token 泄露导致 RCE）
 func (h *SystemHandler) UpdatePrepare(c *gin.Context) {
@@ -161,6 +165,11 @@ func (h *SystemHandler) Update(c *gin.Context) {
 	if !validToken {
 		c.JSON(403, gin.H{"error": "确认令牌无效或已过期，请重新获取"})
 		return
+	}
+
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("system_update", fmt.Sprint(username), c.ClientIP(), "触发系统更新")
 	}
 
 	wd, err := os.Getwd()

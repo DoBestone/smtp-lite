@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"smtp-lite/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -9,10 +10,11 @@ import (
 
 type APIKeyHandler struct {
 	apiKeyService *service.APIKeyService
+	auditService  *service.AuditService
 }
 
-func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
-	return &APIKeyHandler{apiKeyService: apiKeyService}
+func NewAPIKeyHandler(apiKeyService *service.APIKeyService, auditService *service.AuditService) *APIKeyHandler {
+	return &APIKeyHandler{apiKeyService: apiKeyService, auditService: auditService}
 }
 
 func (h *APIKeyHandler) List(c *gin.Context) {
@@ -42,6 +44,11 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("apikey_create", fmt.Sprint(username), c.ClientIP(), "创建 API Key: "+req.Name)
+	}
+
 	c.JSON(201, gin.H{
 		"id":         key.ID,
 		"name":       key.Name,
@@ -66,6 +73,11 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("apikey_delete", fmt.Sprint(username), c.ClientIP(), "删除 API Key: "+uid.String())
+	}
+
 	c.JSON(200, gin.H{"message": "Deleted"})
 }
 
@@ -82,6 +94,11 @@ func (h *APIKeyHandler) Reset(c *gin.Context) {
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+
+	username, _ := c.Get("username")
+	if h.auditService != nil {
+		h.auditService.Log("apikey_reset", fmt.Sprint(username), c.ClientIP(), "重置 API Key: "+uid.String())
 	}
 
 	c.JSON(200, gin.H{

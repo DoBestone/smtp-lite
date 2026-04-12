@@ -86,6 +86,16 @@ func (s *WebhookService) List() ([]model.Webhook, error) {
 	return webhooks, err
 }
 
+// ListPaged 分页获取 Webhook
+func (s *WebhookService) ListPaged(page, pageSize int) ([]model.Webhook, int64, error) {
+	var webhooks []model.Webhook
+	var total int64
+	s.db.Model(&model.Webhook{}).Count(&total)
+	offset := (page - 1) * pageSize
+	err := s.db.Order("created_at desc").Offset(offset).Limit(pageSize).Find(&webhooks).Error
+	return webhooks, total, err
+}
+
 func (s *WebhookService) GetByID(id uuid.UUID) (*model.Webhook, error) {
 	var webhook model.Webhook
 	err := s.db.First(&webhook, id).Error

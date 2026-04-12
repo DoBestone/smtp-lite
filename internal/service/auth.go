@@ -110,6 +110,9 @@ func (s *AuthService) Login(username, password string) (string, error) {
 	if expireHours <= 0 {
 		expireHours = 168
 	}
+	if expireHours > 720 {
+		expireHours = 720 // 上限 30 天
+	}
 
 	now := time.Now()
 	claims := &Claims{

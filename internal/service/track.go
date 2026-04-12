@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"net/url"
+	"regexp"
 	"smtp-lite/internal/config"
 	"smtp-lite/internal/model"
 	"strings"
@@ -52,16 +54,31 @@ func (s *TrackService) InjectTrackPixel(body string, trackID string) string {
 	return body
 }
 
-func (s *TrackService) injectClickTracking(body string, _ string) string {
+// hrefRe 匹配 HTML 中 <a> 标签的 href 属性
+var hrefRe = regexp.MustCompile(`(<a\s[^>]*href\s*=\s*["'])(https?://[^"']+)(["'])`)
+
+func (s *TrackService) injectClickTracking(body string, trackID string) string {
 	cfg := config.Get()
 	if !cfg.Track.Enabled || cfg.Track.TrackDomain == "" {
 		return body
 	}
 
-	// 简单替换 http/https 链接
-	// 实际应用中应该用正则表达式更精确地处理
-	// 这里只做示例
-	return body
+	trackBase := fmt.Sprintf("https://%s/track/click/%s", cfg.Track.TrackDomain, trackID)
+
+	return hrefRe.ReplaceAllStringFunc(body, func(match string) string {
+		parts := hrefRe.FindStringSubmatch(match)
+		if len(parts) < 4 {
+			return match
+		}
+		originalURL := parts[2]
+		// 不追踪 unsubscribe 链接和 mailto
+		lower := strings.ToLower(originalURL)
+		if strings.Contains(lower, "unsubscribe") || strings.HasPrefix(lower, "mailto:") {
+			return match
+		}
+		tracked := fmt.Sprintf("%s?url=%s", trackBase, url.QueryEscape(originalURL))
+		return parts[1] + tracked + parts[3]
+	})
 }
 
 // RecordOpen 记录打开事件

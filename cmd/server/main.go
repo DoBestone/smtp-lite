@@ -16,6 +16,7 @@ import (
 	"smtp-lite/internal/service"
 	"smtp-lite/internal/version"
 	"smtp-lite/web"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -80,6 +81,7 @@ func main() {
 		&model.SendQueue{},
 		&model.BatchSend{},
 		&model.RateLimit{},
+		&model.AuditLog{},
 	); err != nil {
 		log.Fatal("Failed to auto migrate:", err)
 	}
@@ -98,6 +100,7 @@ func main() {
 	queueService := service.NewQueueService(db, sendService, smtpService, webhookService, rateLimitService, blacklistService)
 	exportService := service.NewExportService(db)
 	localeService := service.NewLocaleService()
+	auditService := service.NewAuditService(db)
 
 	// 注入依赖
 	sendService.SetWebhookService(webhookService)
@@ -107,16 +110,16 @@ func main() {
 	trackService.SetWebhookService(webhookService)
 
 	// 初始化 Handler
-	authHandler := handler.NewAuthHandler(authService)
-	smtpHandler := handler.NewSmtpHandler(smtpService)
-	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
+	authHandler := handler.NewAuthHandler(authService, auditService)
+	smtpHandler := handler.NewSmtpHandler(smtpService, auditService)
+	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService, auditService)
 	sendHandler := handler.NewSendHandler(sendService, smtpService)
 	templateHandler := handler.NewTemplateHandler(templateService)
 	recipientHandler := handler.NewRecipientHandler(recipientService)
 	blacklistHandler := handler.NewBlacklistHandler(blacklistService)
 	webhookHandler := handler.NewWebhookHandler(webhookService)
 	trackHandler := handler.NewTrackHandler(trackService)
-	systemHandler := handler.NewSystemHandler()
+	systemHandler := handler.NewSystemHandler(auditService)
 
 	// 路由
 	r := gin.Default()
@@ -126,6 +129,16 @@ func main() {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
 		c.Next()
 	})
+
+	// Release 模式下隐藏内部错误细节
+	if cfg.Server.Mode == "release" {
+		r.Use(func(c *gin.Context) {
+			c.Next()
+			if c.Writer.Status() >= 500 {
+				c.JSON(c.Writer.Status(), gin.H{"error": "internal server error"})
+			}
+		})
+	}
 
 	// CORS
 	r.Use(func(c *gin.Context) {
@@ -321,6 +334,30 @@ func main() {
 				localeService.SetLocale(req.Locale)
 				config.UpdateLocale(req.Locale)
 				c.JSON(200, gin.H{"message": "Locale updated"})
+			})
+
+			// 审计日志
+			protected.GET("/audit-logs", func(c *gin.Context) {
+				page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+				pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+				if page < 1 {
+					page = 1
+				}
+				if pageSize < 1 || pageSize > 100 {
+					pageSize = 50
+				}
+				logs, total, err := auditService.List(page, pageSize)
+				if err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(200, gin.H{
+					"logs":       logs,
+					"total":      total,
+					"page":       page,
+					"page_size":  pageSize,
+					"total_page": (total + int64(pageSize) - 1) / int64(pageSize),
+				})
 			})
 
 			// 系统

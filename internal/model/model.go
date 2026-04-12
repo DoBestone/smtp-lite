@@ -254,3 +254,22 @@ func (r *RateLimit) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// AuditLog 审计日志
+type AuditLog struct {
+	ID        uuid.UUID `gorm:"type:char(36);primaryKey" json:"id"`
+	Action    string    `gorm:"type:varchar(50);not null;index" json:"action"`    // login, change_password, smtp_create, smtp_delete, apikey_create, apikey_delete, system_update 等
+	Username  string    `gorm:"type:varchar(100);index" json:"username"`          // 操作人
+	IP        string    `gorm:"type:varchar(45)" json:"ip"`                       // 操作 IP
+	Detail    string    `gorm:"type:text" json:"detail"`                          // 操作详情
+	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
+}
+
+func (a *AuditLog) TableName() string { return "audit_logs" }
+
+func (a *AuditLog) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return nil
+}
