@@ -36,13 +36,8 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2020',
     cssCodeSplit: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'element-plus': ['element-plus', '@element-plus/icons-vue'],
-          vendor: ['vue', 'vue-router', 'pinia', 'vue-i18n', 'axios', 'dayjs']
-        }
-      }
-    }
+    chunkSizeWarningLimit: 1200
+    // 不手动分 Element Plus chunk: auto-import 按组件懒加载,
+    // 强制合并会产生循环依赖 (Cannot access 'xt' before initialization)
   }
 })
