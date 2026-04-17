@@ -1,936 +1,547 @@
 <template>
-  <div class="app-layout">
+  <div
+    class="layout"
+    :class="{
+      'is-collapsed': appStore.sidebarCollapsed,
+      'is-mobile-open': mobileOpen
+    }"
+  >
     <!-- 移动端遮罩 -->
-    <transition name="fade">
-      <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
-    </transition>
-    
+    <div
+      v-if="isMobile"
+      class="layout__backdrop"
+      :class="{ 'is-visible': mobileOpen }"
+      @click="mobileOpen = false"
+    />
+
     <!-- 侧边栏 -->
-    <aside class="sidebar" :class="{ open: sidebarOpen }">
-      <!-- Logo -->
-      <div class="sidebar-logo">
-        <span class="logo-icon">📧</span>
-        <div class="logo-text">
-          <span class="logo-title">SMTP Lite</span>
-          <span class="logo-subtitle">个人邮箱聚合</span>
+    <aside class="layout__sidebar">
+      <div class="layout__brand">
+        <div class="layout__logo">
+          <el-icon :size="18"><Message /></el-icon>
+        </div>
+        <div v-if="!isCompact" class="layout__brand-text">
+          <span class="layout__brand-name">SMTP Lite</span>
+          <span class="layout__brand-tagline">{{ t('app.tagline') }}</span>
         </div>
       </div>
-      
-      <!-- 导航菜单 -->
-      <nav class="sidebar-nav">
-        <div class="nav-section">
-          <span class="nav-section-title">核心功能</span>
-          <router-link to="/smtp" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <rect x="2" y="4" width="20" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/>
-                <path d="M2 8l10 6 10-6" stroke="currentColor" stroke-width="1.8"/>
-              </svg>
-            </span>
-            <span class="nav-label">SMTP 账号</span>
+
+      <nav class="layout__nav">
+        <template v-for="group in navGroups" :key="group.key">
+          <div v-if="!isCompact" class="layout__nav-group">
+            {{ t(group.label) }}
+          </div>
+          <router-link
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            class="layout__nav-item"
+            active-class="is-active"
+            @click="onNavClick"
+          >
+            <el-icon :size="16"><component :is="item.icon" /></el-icon>
+            <span v-if="!isCompact" class="layout__nav-label">{{ t(item.label) }}</span>
           </router-link>
-          
-          <router-link to="/send" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </span>
-            <span class="nav-label">发送邮件</span>
-          </router-link>
-          
-          <router-link to="/logs" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">发送日志</span>
-          </router-link>
-          
-          <router-link to="/stats" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-              </svg>
-            </span>
-            <span class="nav-label">统计数据</span>
-          </router-link>
-        </div>
-        
-        <div class="nav-section">
-          <span class="nav-section-title">资源管理</span>
-          <router-link to="/keys" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">API Key</span>
-          </router-link>
-          
-          <router-link to="/templates" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/>
-                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">邮件模板</span>
-          </router-link>
-          
-          <router-link to="/recipients" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5"/>
-                <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">收件人</span>
-          </router-link>
-        </div>
-        
-        <div class="nav-section">
-          <span class="nav-section-title">高级功能</span>
-          <router-link to="/webhooks" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">Webhook</span>
-          </router-link>
-          
-          <router-link to="/blacklist" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">黑名单</span>
-          </router-link>
-          
-          <router-link to="/docs" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.5"/>
-                <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">API 文档</span>
-          </router-link>
-        </div>
-        
-        <div class="nav-section nav-section-bottom">
-          <router-link to="/settings" class="nav-item">
-            <span class="nav-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.5"/>
-              </svg>
-            </span>
-            <span class="nav-label">系统设置</span>
-          </router-link>
-        </div>
+        </template>
       </nav>
-      
-      <!-- 底部统计 -->
-      <div class="sidebar-footer">
-        <div class="today-stats">
-          <span class="stats-dot"></span>
-          <span>今日发送 <strong>{{ stats.today_sent || 0 }}</strong> 封</span>
-        </div>
+
+      <div class="layout__sidebar-foot">
+        <button
+          v-if="!isMobile"
+          class="layout__collapse-btn"
+          @click="appStore.toggleSidebar"
+          :title="appStore.sidebarCollapsed ? t('common.expand') : t('common.collapse')"
+        >
+          <el-icon :size="16">
+            <Fold v-if="!appStore.sidebarCollapsed" />
+            <Expand v-else />
+          </el-icon>
+        </button>
       </div>
     </aside>
-    
-    <!-- 主内容区 -->
-    <div class="main-wrapper">
-      <!-- 顶部导航 -->
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="menu-toggle" @click="sidebarOpen = !sidebarOpen">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+
+    <!-- 主体 -->
+    <div class="layout__main">
+      <header class="layout__topbar">
+        <div class="layout__topbar-left">
+          <button
+            v-if="isMobile"
+            class="layout__iconbtn layout__iconbtn--square"
+            @click="mobileOpen = !mobileOpen"
+            aria-label="menu"
+          >
+            <el-icon :size="18"><Menu /></el-icon>
           </button>
-          <h1 class="page-title">{{ pageTitle }}</h1>
+          <h1 class="layout__page-title">{{ pageTitle }}</h1>
         </div>
-        <div class="topbar-right">
-          <div class="quick-stats">
-            <span class="stat-item">
-              <span class="stat-dot success"></span>
-              成功率 {{ (stats.success_rate || 0).toFixed(1) }}%
-            </span>
-          </div>
-          <div class="topbar-actions">
-            <button class="action-btn logout" @click="logout">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span>退出</span>
+        <div class="layout__topbar-right">
+          <el-dropdown trigger="click" @command="onLocaleChange">
+            <button class="layout__iconbtn">
+              <el-icon :size="16"><Operation /></el-icon>
+              <span class="layout__locale-text">{{ localeLabel }}</span>
             </button>
-          </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="zh-CN">简体中文</el-dropdown-item>
+                <el-dropdown-item command="en-US">English</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+
+          <el-dropdown trigger="click" @command="onUserCommand">
+            <button class="layout__user">
+              <div class="layout__avatar">{{ avatarLetter }}</div>
+              <span class="layout__username">{{ authStore.username || 'admin' }}</span>
+              <el-icon :size="12"><ArrowDown /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="settings">
+                  <el-icon><Setting /></el-icon>
+                  {{ t('nav.settings') }}
+                </el-dropdown-item>
+                <el-dropdown-item command="logout" divided>
+                  <el-icon><SwitchButton /></el-icon>
+                  {{ t('common.logout') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </header>
-      
-      <!-- 页面内容 -->
-      <main class="page-content">
-        <router-view />
+
+      <main class="layout__content">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </main>
     </div>
-    
-    <!-- 强制更新弹窗（不可关闭） -->
-    <div v-if="forceUpdate.show" class="force-update-overlay">
-      <div class="force-update-modal">
-        <!-- 更新中 -->
-        <div v-if="forceUpdate.progress === 'updating'" class="force-update-body">
-          <div class="force-spinner"></div>
-          <h3>正在更新...</h3>
-          <p class="force-hint">请勿关闭页面，更新完成后将自动刷新</p>
-          <div class="force-steps">
-            <div :class="['force-step', { done: forceUpdate.step >= 1 }]">1. 下载更新</div>
-            <div :class="['force-step', { done: forceUpdate.step >= 2 }]">2. 替换文件</div>
-            <div :class="['force-step', { done: forceUpdate.step >= 3 }]">3. 重启服务</div>
-          </div>
-        </div>
-        <!-- 更新完成 -->
-        <div v-else-if="forceUpdate.progress === 'done'" class="force-update-body">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#22c55e" stroke-width="2"/>
-            <path d="M8 12l3 3 5-5" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <h3 style="color:#166534">更新完成！</h3>
-          <p class="force-hint">页面将在 3 秒后自动刷新</p>
-        </div>
-        <!-- 更新失败 -->
-        <div v-else-if="forceUpdate.progress === 'error'" class="force-update-body">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="2"/>
-            <path d="M15 9l-6 6M9 9l6 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <h3 style="color:#991b1b">更新失败</h3>
-          <p class="force-hint">请在服务器上使用命令行更新：</p>
-          <div class="force-cmd-box"><code>smtp-lite update</code></div>
-          <button class="force-retry-btn" @click="doForceUpdate">重试更新</button>
-        </div>
-        <!-- 等待确认 -->
-        <div v-else class="force-update-body">
-          <div class="force-icon-warn">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <line x1="12" y1="9" x2="12" y2="13" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
-              <line x1="12" y1="17" x2="12.01" y2="17" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </div>
-          <h3>发现重要更新</h3>
-          <p class="force-version">{{ forceUpdate.latest }}</p>
-          <p class="force-hint">此版本为强制更新版本，需要立即更新后才能继续使用</p>
-          <button class="force-update-btn" @click="doForceUpdate" :disabled="forceUpdate.progress === 'updating'">
-            立即更新
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Toast -->
-    <transition name="toast-fade">
-      <div v-if="toast.show" class="toast" :class="toast.type">
-        {{ toast.msg }}
-      </div>
-    </transition>
   </div>
 </template>
 
-<script>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { store, actions } from '@/store'
-import axios from 'axios'
+<script setup lang="ts">
+import { computed, markRaw, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import {
+  DataAnalysis,
+  Message,
+  Promotion,
+  Key,
+  Files,
+  User,
+  Document,
+  Link,
+  CircleClose,
+  Reading,
+  Setting,
+  SwitchButton,
+  ArrowDown,
+  Fold,
+  Expand,
+  Operation,
+  Menu
+} from '@element-plus/icons-vue'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { setI18nLocale } from '@/i18n'
 
-const API = '/api/v1'
+const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const appStore = useAppStore()
+const authStore = useAuthStore()
 
-const pageTitles = {
-  '/smtp': 'SMTP 账号管理',
-  '/send': '发送邮件',
-  '/keys': 'API Key 管理',
-  '/templates': '邮件模板',
-  '/recipients': '收件人分组',
-  '/logs': '发送日志',
-  '/stats': '统计数据',
-  '/webhooks': 'Webhook 回调',
-  '/blacklist': '黑名单管理',
-  '/docs': 'API 文档',
-  '/settings': '系统设置'
+const mobileOpen = ref(false)
+const isMobile = ref(false)
+
+const mq = window.matchMedia('(max-width: 992px)')
+const syncMobile = (e: MediaQueryListEvent | MediaQueryList) => {
+  isMobile.value = 'matches' in e ? e.matches : (e as MediaQueryList).matches
+  if (!isMobile.value) mobileOpen.value = false
+}
+syncMobile(mq)
+
+onMounted(() => mq.addEventListener?.('change', syncMobile as EventListener))
+onBeforeUnmount(() => mq.removeEventListener?.('change', syncMobile as EventListener))
+
+// 移动端点击菜单后自动关闭抽屉
+function onNavClick() {
+  if (isMobile.value) mobileOpen.value = false
 }
 
-export default {
-  name: 'MainLayout',
-  setup() {
-    const router = useRouter()
-    const route = useRoute()
-    const sidebarOpen = ref(false)
+// 在 PC 模式下：sidebar collapsed 决定是否紧凑；移动端抽屉打开时展开完整内容
+const isCompact = computed(() => (isMobile.value ? false : appStore.sidebarCollapsed))
 
-    const pageTitle = computed(() => pageTitles[route.path] || '')
-    const stats = computed(() => store.stats)
-    const toast = computed(() => store.toast)
+const navGroups = [
+  {
+    key: 'core',
+    label: 'nav.group.core',
+    items: [
+      { to: '/stats', label: 'nav.stats', icon: markRaw(DataAnalysis) },
+      { to: '/send', label: 'nav.send', icon: markRaw(Promotion) },
+      { to: '/smtp', label: 'nav.smtp', icon: markRaw(Message) }
+    ]
+  },
+  {
+    key: 'resources',
+    label: 'nav.group.resources',
+    items: [
+      { to: '/keys', label: 'nav.keys', icon: markRaw(Key) },
+      { to: '/templates', label: 'nav.templates', icon: markRaw(Files) },
+      { to: '/recipients', label: 'nav.recipients', icon: markRaw(User) },
+      { to: '/logs', label: 'nav.logs', icon: markRaw(Document) }
+    ]
+  },
+  {
+    key: 'advanced',
+    label: 'nav.group.advanced',
+    items: [
+      { to: '/webhooks', label: 'nav.webhooks', icon: markRaw(Link) },
+      { to: '/blacklist', label: 'nav.blacklist', icon: markRaw(CircleClose) },
+      { to: '/docs', label: 'nav.docs', icon: markRaw(Reading) }
+    ]
+  },
+  {
+    key: 'system',
+    label: 'nav.group.system',
+    items: [{ to: '/settings', label: 'nav.settings', icon: markRaw(Setting) }]
+  }
+]
 
-    // 强制更新状态
-    const forceUpdate = reactive({
-      show: false,
-      latest: '',
-      progress: '', // '', 'updating', 'done', 'error'
-      step: 0
-    })
+const pageTitle = computed(() => {
+  const key = route.meta.title as string | undefined
+  return key ? t(key) : ''
+})
 
-    // 自动检测强制更新
-    const checkForceUpdate = async () => {
-      try {
-        const res = await axios.get(`${API}/system/update-check`, { headers: actions.getHeaders() })
-        if (res.data.force_update) {
-          forceUpdate.show = true
-          forceUpdate.latest = res.data.latest
-        }
-      } catch (e) {
-        // 检测失败静默忽略，不影响正常使用
-      }
-    }
+const localeLabel = computed(() => (locale.value === 'zh-CN' ? '中文' : 'EN'))
 
-    // 执行强制更新
-    const doForceUpdate = async () => {
-      forceUpdate.progress = 'updating'
-      forceUpdate.step = 0
+const avatarLetter = computed(() =>
+  (authStore.username || 'A').charAt(0).toUpperCase()
+)
 
-      try {
-        // 步骤1：获取确认令牌
-        forceUpdate.step = 1
-        let confirmToken = ''
-        let legacyMode = false
+function onLocaleChange(cmd: 'zh-CN' | 'en-US') {
+  appStore.setLocale(cmd)
+  setI18nLocale(cmd)
+}
 
-        try {
-          const prepareRes = await axios.post(`${API}/system/update-prepare`, {}, { headers: actions.getHeaders() })
-          confirmToken = prepareRes.data.confirm_token
-        } catch (e) {
-          if (e.response && e.response.status === 404) {
-            legacyMode = true
-          } else {
-            forceUpdate.progress = 'error'
-            return
-          }
-        }
-
-        // 步骤2：发起更新
-        try {
-          const body = legacyMode ? {} : { confirm_token: confirmToken }
-          await axios.post(`${API}/system/update`, body, { headers: actions.getHeaders() })
-        } catch (e) {
-          forceUpdate.progress = 'error'
-          return
-        }
-        forceUpdate.step = 2
-
-        // 步骤3：轮询等待新版本
-        const target = forceUpdate.latest
-        const startTime = Date.now()
-        const timeout = 180000
-
-        const poll = async () => {
-          if (Date.now() - startTime > timeout) {
-            forceUpdate.progress = 'error'
-            return
-          }
-          try {
-            const res = await axios.get(`${API}/version`)
-            if (res.data.version === target) {
-              forceUpdate.step = 3
-              forceUpdate.progress = 'done'
-              setTimeout(() => window.location.reload(), 3000)
-              return
-            }
-          } catch (e) {
-            // 服务重启中，继续轮询
-          }
-          setTimeout(poll, 2000)
-        }
-
-        poll()
-      } catch (e) {
-        forceUpdate.progress = 'error'
-      }
-    }
-
-    // 路由变化时关闭移动端侧边栏
-    watch(() => route.path, () => {
-      sidebarOpen.value = false
-    })
-
-    const logout = () => {
-      actions.logout()
-      router.push('/login')
-    }
-
-    onMounted(() => {
-      actions.loadStats()
-      // 登录后自动检测是否需要强制更新
-      checkForceUpdate()
-    })
-
-    return { pageTitle, stats, toast, logout, sidebarOpen, forceUpdate, doForceUpdate }
+function onUserCommand(cmd: string) {
+  if (cmd === 'logout') {
+    authStore.logout()
+    router.push('/login')
+  } else if (cmd === 'settings') {
+    router.push('/settings')
   }
 }
 </script>
 
 <style scoped>
-* { box-sizing: border-box; }
-
-.app-layout {
-  display: flex;
+.layout {
+  display: grid;
+  grid-template-columns: 232px 1fr;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--color-bg-page);
+  transition: grid-template-columns var(--transition);
 }
 
-/* ========== 侧边栏 ========== */
-.sidebar {
-  width: 260px;
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  color: #fff;
+.layout.is-collapsed {
+  grid-template-columns: 64px 1fr;
+}
+
+/* ---------- 侧边栏 ---------- */
+.layout__sidebar {
   display: flex;
   flex-direction: column;
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 100;
-  overflow: hidden;
-}
-
-.sidebar-logo {
-  padding: 24px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-.logo-icon {
-  font-size: 32px;
-  line-height: 1;
-}
-
-.logo-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.logo-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.logo-subtitle {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  margin-top: 2px;
-}
-
-/* 导航菜单 */
-.sidebar-nav {
-  flex: 1;
-  padding: 16px 12px;
-  overflow-y: auto;
-}
-
-.nav-section {
-  margin-bottom: 24px;
-}
-
-.nav-section-title {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.4);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0 12px;
-  margin-bottom: 8px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  color: rgba(255,255,255,0.7);
-  text-decoration: none;
-  border-radius: 8px;
-  margin-bottom: 4px;
-  transition: all 0.2s;
-  font-size: 14px;
-}
-
-.nav-item:hover {
-  background: rgba(255,255,255,0.08);
-  color: #fff;
-}
-
-.nav-item.router-link-active {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.nav-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.9;
-}
-
-.nav-item.router-link-active .nav-icon {
-  opacity: 1;
-}
-
-/* 底部导航区域 */
-.nav-section-bottom {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-}
-
-/* 侧边栏底部 */
-.sidebar-footer {
-  padding: 16px 20px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-}
-
-.today-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: rgba(255,255,255,0.6);
-}
-
-.stats-dot {
-  width: 8px;
-  height: 8px;
-  background: #22c55e;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* ========== 主内容区 ========== */
-.main-wrapper {
-  flex: 1;
-  margin-left: 260px;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-/* 顶部导航 */
-.topbar {
   background: #fff;
-  padding: 0 32px;
-  height: 64px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid var(--color-border);
   position: sticky;
   top: 0;
-  z-index: 50;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 20;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0;
-}
-
-.topbar-right {
+.layout__brand {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
-.quick-stats {
+.layout__logo {
   display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #64748b;
-}
-
-.stat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.stat-dot.success { background: #22c55e; }
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #64748b;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #475569;
-}
-
-.action-btn.logout:hover {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #dc2626;
-}
-
-/* 页面内容 */
-.page-content {
-  flex: 1;
-  padding: 24px 32px;
-}
-
-/* Toast */
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.toast.success {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.toast.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.toast-fade-enter-active, .toast-fade-leave-active {
-  transition: all 0.3s ease;
-}
-
-.toast-fade-enter-from, .toast-fade-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(20px);
-}
-
-/* 汉堡菜单按钮 - 默认隐藏 */
-.menu-toggle {
-  display: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: none;
-  border: none;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  color: #475569;
-  cursor: pointer;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
   flex-shrink: 0;
-  transition: background 0.2s;
 }
 
-.menu-toggle:hover {
-  background: #f1f5f9;
-}
-
-/* 遮罩层 - 默认隐藏 */
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 99;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
-
-/* ========== 强制更新弹窗 ========== */
-.force-update-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 9999;
+.layout__brand-text {
   display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.force-update-modal {
-  background: #fff;
-  border-radius: 16px;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  flex-direction: column;
+  min-width: 0;
   overflow: hidden;
 }
 
-.force-update-body {
-  padding: 40px 32px;
-  text-align: center;
-}
-
-.force-update-body h3 {
-  margin: 16px 0 8px;
-  font-size: 20px;
-  color: #1e293b;
-}
-
-.force-version {
-  display: inline-block;
-  padding: 4px 14px;
-  background: #fef3c7;
-  color: #92400e;
-  border-radius: 20px;
-  font-size: 14px;
+.layout__brand-name {
+  font-family: var(--font-display);
+  font-size: 15px;
   font-weight: 600;
-  margin: 8px 0;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
 }
 
-.force-hint {
-  color: #64748b;
-  font-size: 14px;
-  margin: 8px 0 20px;
-  line-height: 1.5;
+.layout__brand-tagline {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.force-update-btn {
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.force-update-btn:hover {
-  opacity: 0.9;
-}
-
-.force-update-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.force-retry-btn {
-  padding: 10px 28px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.force-retry-btn:hover {
-  background: #e2e8f0;
-}
-
-.force-spinner {
-  width: 48px;
-  height: 48px;
-  border: 3px solid #e2e8f0;
-  border-top-color: #f59e0b;
-  border-radius: 50%;
-  animation: force-spin 0.8s linear infinite;
-  margin: 0 auto;
-}
-
-@keyframes force-spin {
-  to { transform: rotate(360deg); }
-}
-
-.force-steps {
+.layout__nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 10px 8px;
   display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 20px;
+  flex-direction: column;
 }
 
-.force-step {
-  padding: 5px 10px;
-  border-radius: 14px;
-  font-size: 12px;
-  background: #f1f5f9;
-  color: #94a3b8;
+.layout__nav-group {
+  padding: 14px 10px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-placeholder);
 }
 
-.force-step.done {
-  background: #fef3c7;
-  color: #92400e;
-}
+.layout__nav-group:first-child { padding-top: 4px; }
 
-.force-cmd-box {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 10px 16px;
-  margin: 0 0 16px;
-  font-family: 'SF Mono', Monaco, Consolas, monospace;
+.layout__nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border-radius: 8px;
   font-size: 13px;
-  color: #334155;
-  user-select: all;
+  color: var(--color-text-regular);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.force-icon-warn {
-  margin-bottom: 4px;
+.layout__nav-item:hover {
+  background: var(--color-primary-lighter);
+  color: var(--color-primary-dark);
 }
 
-/* 响应式 */
-@media (max-width: 1024px) {
-  .sidebar {
-    width: 72px;
+.layout__nav-item.is-active {
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 500;
+  box-shadow: var(--shadow-primary);
+}
+
+.layout__nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout.is-collapsed .layout__nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.layout__sidebar-foot {
+  padding: 10px;
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  justify-content: flex-end;
+  min-height: 50px;
+}
+
+.layout.is-collapsed .layout__sidebar-foot {
+  justify-content: center;
+}
+
+.layout__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.layout__collapse-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* ---------- 主体 ---------- */
+.layout__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout__topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(10px);
+  border-bottom: 1px solid var(--color-border);
+  min-height: 56px;
+}
+
+.layout__topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.layout__page-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.layout__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.layout__iconbtn,
+.layout__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text-regular);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.layout__iconbtn--square { padding: 0; width: 34px; justify-content: center; }
+
+.layout__iconbtn:hover,
+.layout__user:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-lighter);
+  color: var(--color-primary-dark);
+}
+
+.layout__locale-text { font-size: 12px; font-weight: 500; }
+
+.layout__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-display);
+}
+
+.layout__username {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.layout__content {
+  flex: 1;
+  padding: 20px 24px 32px;
+  min-height: 0;
+}
+
+/* ---------- 移动端遮罩 ---------- */
+.layout__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 19;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition);
+}
+
+.layout__backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- 过渡 ---------- */
+.fade-enter-active,
+.fade-leave-active { transition: opacity 140ms ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
+
+/* ---------- 响应式 ---------- */
+
+/* 992px 以下：侧边栏变成抽屉 */
+@media (max-width: 992px) {
+  .layout { grid-template-columns: 1fr; }
+  .layout.is-collapsed { grid-template-columns: 1fr; }
+
+  .layout__sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform var(--transition);
+    box-shadow: var(--shadow-lg);
   }
-  
-  .sidebar .logo-text,
-  .sidebar .nav-section-title,
-  .sidebar .nav-label,
-  .sidebar-footer {
-    display: none;
+
+  .layout.is-mobile-open .layout__sidebar {
+    transform: translateX(0);
   }
-  
-  .sidebar-logo {
-    justify-content: center;
-    padding: 20px;
-  }
-  
-  .nav-item {
-    justify-content: center;
-    padding: 12px;
-  }
-  
-  .main-wrapper {
-    margin-left: 72px;
-  }
+
+  .layout__sidebar-foot { display: none; }
+  .layout__nav-group { display: block; }
+  .layout__nav-label { display: inline; }
+  .layout__nav-item { justify-content: flex-start; padding: 8px 10px; }
 }
 
 @media (max-width: 768px) {
-  .menu-toggle {
-    display: flex;
-  }
-  
-  .sidebar-overlay {
-    display: block;
-  }
-  
-  .sidebar {
-    width: 280px;
-    transform: translateX(-100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: none;
-  }
-  
-  .sidebar.open {
-    transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
-  }
-  
-  /* 侧边栏打开时恢复完整显示 */
-  .sidebar.open .logo-text,
-  .sidebar.open .nav-section-title,
-  .sidebar.open .nav-label,
-  .sidebar.open .sidebar-footer {
-    display: flex;
-  }
-  .sidebar.open .nav-section-title {
-    display: block;
-  }
-  
-  .sidebar.open .sidebar-logo {
-    justify-content: flex-start;
-    padding: 24px 20px;
-  }
-  
-  .sidebar.open .nav-item {
-    justify-content: flex-start;
-    padding: 12px 16px;
-  }
-  
-  .main-wrapper {
-    margin-left: 0;
-  }
-  
-  .page-content {
-    padding: 16px;
-  }
-  
-  .topbar {
-    padding: 0 16px;
-  }
-  
-  .topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
-  .page-title {
-    font-size: 17px;
-  }
-  
-  .quick-stats {
-    display: none;
-  }
-  
-  .action-btn span {
-    display: none;
-  }
-  
-  .action-btn {
-    padding: 8px;
-  }
+  .layout__content { padding: 16px; }
+  .layout__topbar { padding: 10px 14px; }
+  .layout__username { display: none; }
+  .layout__page-title { font-size: 15px; }
 }
 </style>
