@@ -65,8 +65,7 @@ export default {
     subtitle: '登录以管理你的聚合发信系统',
     username: '用户名',
     password: '密码',
-    submit: '登录',
-    defaultHint: '默认账号 admin / admin123，首次登录后请立即修改'
+    submit: '登录'
   },
   stats: {
     title: '仪表盘',

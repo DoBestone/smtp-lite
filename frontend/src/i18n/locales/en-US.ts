@@ -65,8 +65,7 @@ export default {
     subtitle: 'Sign in to manage your aggregated email system',
     username: 'Username',
     password: 'Password',
-    submit: 'Sign in',
-    defaultHint: 'Default admin / admin123 — change immediately after first login'
+    submit: 'Sign in'
   },
   stats: {
     title: 'Dashboard',

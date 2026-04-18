@@ -8,7 +8,7 @@
       <div class="login__hero-inner">
         <div class="login__brand">
           <div class="login__logo">
-            <el-icon :size="20"><Message /></el-icon>
+            <img :src="logoIconWebp" alt="SMTP Lite" class="login__logo-img" />
           </div>
           <div class="login__brand-text">
             <div class="login__brand-name">SMTP Lite</div>
@@ -65,7 +65,7 @@
         <div class="login__form-head">
           <div class="login__brand login__brand--mobile">
             <div class="login__logo">
-              <el-icon :size="18"><Message /></el-icon>
+              <img :src="logoIconWebp" alt="SMTP Lite" class="login__logo-img" />
             </div>
             <span class="login__brand-name">SMTP Lite</span>
           </div>
@@ -119,11 +119,6 @@
           </el-button>
         </el-form>
 
-        <div class="login__hint">
-          <el-icon><InfoFilled /></el-icon>
-          <span>{{ t('login.defaultHint') }}</span>
-        </div>
-
         <div class="login__lang">
           <button
             v-for="opt in langs"
@@ -148,15 +143,14 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import {
   Connection,
   DataLine,
-  InfoFilled,
   Lock,
-  Message,
   Right,
   User
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { setI18nLocale } from '@/i18n'
+import logoIconWebp from '@/assets/logo-icon-lg.webp'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -295,9 +289,20 @@ async function submit() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+  background: #fff;
   color: #fff;
+  overflow: hidden;
   box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);
+  flex-shrink: 0;
+}
+
+.login__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .login__brand-text { line-height: 1.3; }
@@ -487,21 +492,6 @@ async function submit() {
 .login__submit:active { transform: translateY(1px); }
 
 .login__submit-arrow { margin-left: 2px; }
-
-.login__hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--color-primary-lighter);
-  color: var(--color-primary-dark);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.login__hint :deep(.el-icon) { margin-top: 2px; flex-shrink: 0; }
 
 .login__lang {
   display: flex;
