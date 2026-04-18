@@ -16,12 +16,15 @@
         </div>
 
         <div v-if="groups.length" class="rcp-side__list">
-          <button
+          <div
             v-for="g in groups"
             :key="g.id"
             class="rcp-group"
             :class="{ 'is-active': activeGroupId === g.id }"
+            role="button"
+            tabindex="0"
             @click="selectGroup(g.id)"
+            @keydown.enter.space.prevent="selectGroup(g.id)"
           >
             <div class="rcp-group__top">
               <span class="rcp-group__name">{{ g.name }}</span>
@@ -29,14 +32,24 @@
             </div>
             <div v-if="g.description" class="rcp-group__desc">{{ g.description }}</div>
             <div class="rcp-group__ops">
-              <button class="rcp-group__op" @click.stop="openGroupDialog(g)">
+              <button
+                type="button"
+                class="rcp-group__op"
+                :title="t('common.edit')"
+                @click.stop="openGroupDialog(g)"
+              >
                 <el-icon><Edit /></el-icon>
               </button>
-              <button class="rcp-group__op rcp-group__op--danger" @click.stop="onDeleteGroup(g)">
+              <button
+                type="button"
+                class="rcp-group__op rcp-group__op--danger"
+                :title="t('common.delete')"
+                @click.stop="onDeleteGroup(g)"
+              >
                 <el-icon><Delete /></el-icon>
               </button>
             </div>
-          </button>
+          </div>
         </div>
         <EmptyHint v-else :icon="Folder" :text="t('recipients.empty')" />
       </el-card>

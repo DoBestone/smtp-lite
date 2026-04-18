@@ -16,13 +16,13 @@
 
     <!-- 侧边栏 -->
     <aside class="layout__sidebar">
-      <div class="layout__brand">
-        <div class="layout__logo">
+      <div class="layout__brand" :class="{ 'is-compact': isCompact }">
+        <picture v-if="!isCompact" class="layout__brand-banner">
+          <source srcset="/logo.webp" type="image/webp" />
+          <img src="/logo.png" alt="SMTP Lite" />
+        </picture>
+        <div v-else class="layout__logo">
           <el-icon :size="18"><Message /></el-icon>
-        </div>
-        <div v-if="!isCompact" class="layout__brand-text">
-          <span class="layout__brand-name">SMTP Lite</span>
-          <span class="layout__brand-tagline">{{ t('app.tagline') }}</span>
         </div>
       </div>
 
@@ -372,9 +372,27 @@ function onUserCommand(cmd: string) {
 .layout__brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  padding: 18px 18px 16px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid var(--color-border-light);
+}
+
+.layout__brand.is-compact {
+  padding: 14px 0 12px;
+}
+
+.layout__brand-banner {
+  display: block;
+  width: 100%;
+}
+
+.layout__brand-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .layout__logo {
