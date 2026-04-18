@@ -18,8 +18,8 @@
     <aside class="layout__sidebar">
       <div class="layout__brand" :class="{ 'is-compact': isCompact }">
         <picture v-if="!isCompact" class="layout__brand-banner">
-          <source srcset="/logo.webp" type="image/webp" />
-          <img src="/logo.png" alt="SMTP Lite" />
+          <source :srcset="logoWebp" type="image/webp" />
+          <img :src="logoPng" alt="SMTP Lite" />
         </picture>
         <div v-else class="layout__logo">
           <el-icon :size="18"><Message /></el-icon>
@@ -175,6 +175,8 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useVersionStore } from '@/stores/version'
 import { setI18nLocale } from '@/i18n'
+import logoWebp from '@/assets/logo.webp'
+import logoPng from '@/assets/logo.png'
 
 const { t, locale } = useI18n()
 const route = useRoute()
