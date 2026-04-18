@@ -16,13 +16,13 @@
 
     <!-- 侧边栏 -->
     <aside class="layout__sidebar">
-      <div class="layout__brand" :class="{ 'is-compact': isCompact }">
-        <picture v-if="!isCompact" class="layout__brand-banner">
-          <source :srcset="logoWebp" type="image/webp" />
-          <img :src="logoPng" alt="SMTP Lite" />
-        </picture>
-        <div v-else class="layout__logo">
-          <el-icon :size="18"><Message /></el-icon>
+      <div class="layout__brand">
+        <div class="layout__logo">
+          <img :src="logoIconWebp" alt="SMTP Lite" class="layout__logo-img" />
+        </div>
+        <div v-if="!isCompact" class="layout__brand-text">
+          <span class="layout__brand-name">SMTP Lite</span>
+          <span class="layout__brand-tagline">{{ t('app.tagline') }}</span>
         </div>
       </div>
 
@@ -175,8 +175,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useVersionStore } from '@/stores/version'
 import { setI18nLocale } from '@/i18n'
-import logoWebp from '@/assets/logo.webp'
-import logoPng from '@/assets/logo.png'
+import logoIconWebp from '@/assets/logo-icon.webp'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -374,31 +373,29 @@ function onUserCommand(cmd: string) {
 .layout__brand {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 72px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 18px 18px 16px;
   border-bottom: 1px solid var(--color-border-light);
+  overflow: hidden;
 }
 
-.layout__brand.is-compact {
-  padding: 10px 0;
-}
-
-.layout__brand-banner {
+.layout__logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  max-width: 180px;
-  max-height: 52px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #eff6ff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.layout__brand-banner img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+.layout__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
