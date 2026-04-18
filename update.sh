@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================
-#  SMTP Lite - 自动更新脚本 v2.1
-#  优先下载 GitHub Release 预编译二进制，失败则源码编译
+#  SMTP Lite - 自动更新脚本 v2.2
+#  默认仅使用 GitHub Release 预编译二进制（含内嵌前端），
+#  确保线上一致性；源码编译需显式 --source 才会启用。
 #  用法:
-#    bash update.sh           检查并更新到最新版本
-#    bash update.sh --force   强制更新（即使版本相同）
+#    bash update.sh           检查并下载预编译二进制
+#    bash update.sh --force   强制重新下载（即使版本相同）
+#    bash update.sh --source  允许在预编译不可用时回退到源码编译
+#    bash update.sh --frontend-only  只刷新前端（保留后端二进制不变）
 # =============================================================
 set -euo pipefail
 
@@ -24,7 +27,16 @@ warn()    { echo -e "  ${Y}⚠${N}  $*"; }
 err()     { echo -e "  ${R}✗${N} $*"; exit 1; }
 
 FORCE=false
-[[ "${1:-}" == "--force" ]] && FORCE=true
+ALLOW_SOURCE=false
+FRONTEND_ONLY=false
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=true ;;
+    --source) ALLOW_SOURCE=true ;;
+    --frontend-only) FRONTEND_ONLY=true ;;
+    *) warn "未知参数: $arg" ;;
+  esac
+done
 
 # ── 检测平台 ─────────────────────────────────────────────────
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -61,10 +73,19 @@ info "当前版本: ${W}${CURRENT}${N}"
 # ── 最新版本 ─────────────────────────────────────────────────
 RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null || true)
 LATEST=$(echo "$RELEASE_JSON" | grep '"tag_name"' | grep -o '"v[^"]*"' | tr -d '"' || true)
-DOWNLOAD_URL=$(echo "$RELEASE_JSON" \
+
+# 提取所有下载链接供按名称匹配
+ASSET_URLS=$(echo "$RELEASE_JSON" \
   | grep '"browser_download_url"' \
-  | grep "${ASSET_NAME}" \
-  | grep -o '"https://[^"]*"' | tr -d '"' | head -1 || true)
+  | grep -o '"https://[^"]*"' | tr -d '"' || true)
+
+# 精确匹配二进制 (文件名末尾要么行尾要么是 .sha256)
+DOWNLOAD_URL=$(echo "$ASSET_URLS" | awk -v name="$ASSET_NAME" '
+  $0 ~ "/" name "$" { print; exit }
+' || true)
+
+# 独立前端 tarball (如果 CI 上传了)
+FRONTEND_URL=$(echo "$ASSET_URLS" | grep -E '/smtp-lite-frontend\.tar\.gz$' | head -1 || true)
 
 [ -z "$LATEST" ] && { err "无法获取最新版本，请检查网络"; }
 info "最新版本: ${W}${LATEST}${N}"
@@ -230,17 +251,60 @@ _restart_process() {
     || err "服务启动失败，请检查日志: $SCRIPT_DIR/smtp-lite.log"
 }
 
+# ── 仅更新前端 ───────────────────────────────────────────────
+update_frontend_only() {
+  if [ -z "$FRONTEND_URL" ]; then
+    err "Release ${LATEST} 未提供独立前端包 (smtp-lite-frontend.tar.gz)"
+  fi
+  info "下载前端 tarball..."
+  local tmp_tar
+  tmp_tar=$(mktemp "${SCRIPT_DIR}/.frontend.tmp.XXXXXX.tar.gz")
+  trap 'rm -f "$tmp_tar"' EXIT
+  curl -fL --progress-bar "$FRONTEND_URL" -o "$tmp_tar" || err "前端下载失败"
+
+  # 校验 sha256（可选）
+  local sha_url expected actual
+  sha_url="${FRONTEND_URL}.sha256"
+  expected=$(curl -fsSL "$sha_url" 2>/dev/null | awk '{print $1}' || true)
+  if [ -n "$expected" ]; then
+    if command -v sha256sum &>/dev/null; then
+      actual=$(sha256sum "$tmp_tar" | awk '{print $1}')
+    else
+      actual=$(shasum -a 256 "$tmp_tar" | awk '{print $1}')
+    fi
+    [ "$expected" = "$actual" ] || err "前端包 SHA256 校验失败"
+    ok "前端 SHA256 校验通过"
+  fi
+
+  mkdir -p "$SCRIPT_DIR/web/dist"
+  rm -rf "$SCRIPT_DIR/web/dist"/*
+  tar -xzf "$tmp_tar" -C "$SCRIPT_DIR/web/dist"
+  rm -f "$tmp_tar"
+  ok "前端已更新到 ${LATEST}"
+}
+
 # ── 主流程 ────────────────────────────────────────────────────
 echo ""
 echo -e "  ${W}SMTP Lite 更新${N}"
 echo ""
 
+if [ "$FRONTEND_ONLY" = true ]; then
+  update_frontend_only
+  restart_service
+  echo ""
+  echo -e "  ${G}前端更新完成 → ${W}${LATEST}${N}"
+  echo ""
+  exit 0
+fi
+
 if update_binary; then
   info "使用: 预编译二进制"
-else
-  warn "预编译二进制不可用，尝试源码编译..."
+elif [ "$ALLOW_SOURCE" = true ]; then
+  warn "预编译二进制不可用，按 --source 要求回退到源码编译..."
   update_source
   info "使用: 源码编译"
+else
+  err "预编译二进制不可用。如确实需要源码编译，请加 --source 参数重试"
 fi
 
 restart_service
