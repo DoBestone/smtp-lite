@@ -107,23 +107,29 @@ func (h *SystemHandler) UpdateCheck(c *gin.Context) {
 	var rel releaseResp
 	if err := json.Unmarshal(body, &rel); err != nil || rel.TagName == "" {
 		c.JSON(200, gin.H{
-			"current":    current,
-			"latest":     "",
-			"has_update": false,
-			"error":      "invalid GitHub response",
+			"current":         current,
+			"current_version": current,
+			"latest":          "",
+			"latest_version":  "",
+			"has_update":      false,
+			"error":           "invalid GitHub response",
 		})
 		return
 	}
 
 	hasUpdate := normalizeVersion(rel.TagName) != normalizeVersion(current)
+	// 同时返回新旧字段名：v2.4.1+ 前端用 current/latest，v2.4.0 及更早前端用 current_version/latest_version
 	c.JSON(200, gin.H{
-		"current":      current,
-		"latest":       rel.TagName,
-		"has_update":   hasUpdate,
-		"force_update": hasUpdate && isForceUpdateVersion(rel.TagName),
-		"changelog":    rel.Body,
-		"published_at": rel.PublishedAt,
-		"release_url":  rel.HTMLURL,
+		"current":         current,
+		"current_version": current,
+		"latest":          rel.TagName,
+		"latest_version":  rel.TagName,
+		"has_update":      hasUpdate,
+		"force_update":    hasUpdate && isForceUpdateVersion(rel.TagName),
+		"changelog":       rel.Body,
+		"release_notes":   rel.Body,
+		"published_at":    rel.PublishedAt,
+		"release_url":     rel.HTMLURL,
 	})
 }
 
@@ -154,26 +160,39 @@ func (h *SystemHandler) Changelog(c *gin.Context) {
 	c.JSON(200, gin.H{"releases": releases})
 }
 
-// Update 一键更新：必须提供 confirm_token，调用 update.sh 或 Go 自更新
+// Update 一键更新：须先调用 update-prepare，然后在 60s 内 POST 本接口。
+// 接受两种确认方式（向后兼容老版本前端）：
+//  1. 新版：{ "confirm_token": "<token from prepare>" }
+//  2. 旧版：{ "confirm": true }  —— v2.4.0 及更早的前端未回传 token，
+//     此时只要 60s 内的 prepare 未过期即认为两步确认已满足。
+//
+// 两种方式都要求本路由已通过 JWT 认证，并且必须先调用 prepare，
+// 因此实际安全边界等价（都是"先 prepare 后 update"的两步模型）。
 func (h *SystemHandler) Update(c *gin.Context) {
 	var req struct {
-		ConfirmToken string `json:"confirm_token" binding:"required"`
+		ConfirmToken string `json:"confirm_token"`
+		Confirm      bool   `json:"confirm"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "confirm_token 是必须的，请先调用 /system/update-prepare 获取令牌"})
-		return
-	}
+	// 旧前端可能发空 body 或只发 {confirm: true}，忽略 bind 错误继续走后面的检查
+	_ = c.ShouldBindJSON(&req)
 
 	h.mu.Lock()
-	validToken := h.confirmToken != "" &&
-		req.ConfirmToken == h.confirmToken &&
-		time.Now().Before(h.tokenExpiry)
+	prepareActive := h.confirmToken != "" && time.Now().Before(h.tokenExpiry)
+
+	var validToken bool
+	if req.ConfirmToken != "" {
+		validToken = prepareActive && req.ConfirmToken == h.confirmToken
+	} else if req.Confirm {
+		// 兼容 v2.4.0 及更早的前端：prepare 尚未过期即视为已两步确认
+		validToken = prepareActive
+	}
+
 	h.confirmToken = ""
 	h.tokenExpiry = time.Time{}
 	h.mu.Unlock()
 
 	if !validToken {
-		c.JSON(403, gin.H{"error": "确认令牌无效或已过期，请重新获取"})
+		c.JSON(403, gin.H{"error": "确认令牌无效或已过期，请先调用 /system/update-prepare"})
 		return
 	}
 
