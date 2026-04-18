@@ -11,7 +11,20 @@
 # =============================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 识别执行方式：
+# - 普通 bash update.sh → BASH_SOURCE 指向真实路径
+# - bash <(curl ...)    → BASH_SOURCE 是 /dev/fd/63 等虚拟 fd，不能写文件
+# - curl ... | bash     → BASH_SOURCE 为空
+# 后两种情况下用 $PWD 作为安装目录（用户应在项目目录里执行）
+_resolve_script_dir() {
+  local src="${BASH_SOURCE[0]:-}"
+  if [ -z "$src" ] || [[ "$src" == /dev/fd/* ]] || [[ "$src" == /proc/self/fd/* ]] || [[ "$src" == pipe:* ]]; then
+    echo "$PWD"
+  else
+    (cd "$(dirname "$src")" && pwd)
+  fi
+}
+SCRIPT_DIR="$(_resolve_script_dir)"
 SERVICE_NAME="smtp-lite"
 GITHUB_REPO="DoBestone/smtp-lite"
 REPO_URL="https://github.com/${GITHUB_REPO}.git"
@@ -52,6 +65,19 @@ case "$ARCH" in
 esac
 ASSET_NAME="smtp-lite-${OS}-${ARCH}"
 info "平台: ${OS}/${ARCH}"
+info "安装目录: ${SCRIPT_DIR}"
+
+# 目录必须可写（避免 /dev/fd 等场景下失败在下载中途）
+if [ ! -d "$SCRIPT_DIR" ] || [ ! -w "$SCRIPT_DIR" ]; then
+  err "安装目录不可写: ${SCRIPT_DIR}\n请 cd 到 smtp-lite 安装目录后再运行 update.sh"
+fi
+
+# 简单合理性检查：目录看起来不像项目目录就警告
+if [ ! -f "$SCRIPT_DIR/smtp-lite" ] \
+   && [ ! -f "$SCRIPT_DIR/config.yaml" ] \
+   && [ ! -f "$SCRIPT_DIR/smtp-lite.db" ]; then
+  warn "当前目录 ${SCRIPT_DIR} 不像 smtp-lite 安装目录（未找到二进制/config/db），继续执行将在此新建文件"
+fi
 
 # ── 读取端口 ─────────────────────────────────────────────────
 PORT=8090
@@ -104,7 +130,8 @@ update_binary() {
   fi
 
   info "下载 ${LATEST} (${ASSET_NAME})..."
-  TMP_BINARY=$(mktemp "${SCRIPT_DIR}/.smtp-lite.tmp.XXXXXX")
+  TMP_BINARY=$(mktemp "${SCRIPT_DIR}/.smtp-lite.tmp.XXXXXX" 2>/dev/null \
+    || mktemp -t smtp-lite.tmp.XXXXXX)
   trap 'rm -f "$TMP_BINARY"' EXIT
 
   if ! curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_BINARY"; then
@@ -258,7 +285,8 @@ update_frontend_only() {
   fi
   info "下载前端 tarball..."
   local tmp_tar
-  tmp_tar=$(mktemp "${SCRIPT_DIR}/.frontend.tmp.XXXXXX.tar.gz")
+  tmp_tar=$(mktemp "${SCRIPT_DIR}/.frontend.tmp.XXXXXX" 2>/dev/null \
+    || mktemp -t smtp-lite-frontend.tmp.XXXXXX)
   trap 'rm -f "$tmp_tar"' EXIT
   curl -fL --progress-bar "$FRONTEND_URL" -o "$tmp_tar" || err "前端下载失败"
 
