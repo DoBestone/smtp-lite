@@ -110,6 +110,31 @@
         </div>
       </header>
 
+      <!-- 全局强制更新横幅 -->
+      <div
+        v-if="versionStore.shouldShowForceBanner"
+        class="layout__force-banner"
+        role="alert"
+      >
+        <div class="layout__force-banner-inner">
+          <el-icon :size="18" class="layout__force-banner-icon"><Warning /></el-icon>
+          <div class="layout__force-banner-text">
+            <strong>{{ t('forceBanner.title', { version: versionStore.latestVersion }) }}</strong>
+            <span>{{ t('forceBanner.desc') }}</span>
+          </div>
+          <router-link to="/settings" class="layout__force-banner-cta">
+            {{ t('forceBanner.cta') }}
+          </router-link>
+          <button
+            class="layout__force-banner-close"
+            :title="t('common.close')"
+            @click="versionStore.dismissForceBanner"
+          >
+            <el-icon :size="14"><Close /></el-icon>
+          </button>
+        </div>
+      </div>
+
       <main class="layout__content">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -142,10 +167,13 @@ import {
   Fold,
   Expand,
   Operation,
-  Menu
+  Menu,
+  Warning,
+  Close
 } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { useVersionStore } from '@/stores/version'
 import { setI18nLocale } from '@/i18n'
 
 const { t, locale } = useI18n()
@@ -153,6 +181,7 @@ const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const versionStore = useVersionStore()
 
 const mobileOpen = ref(false)
 const isMobile = ref(false)
@@ -164,7 +193,11 @@ const syncMobile = (e: MediaQueryListEvent | MediaQueryList) => {
 }
 syncMobile(mq)
 
-onMounted(() => mq.addEventListener?.('change', syncMobile as EventListener))
+onMounted(() => {
+  mq.addEventListener?.('change', syncMobile as EventListener)
+  // 启动时静默检测更新（失败不打扰用户）
+  versionStore.checkUpdate(true)
+})
 onBeforeUnmount(() => mq.removeEventListener?.('change', syncMobile as EventListener))
 
 // 移动端点击菜单后自动关闭抽屉
@@ -244,6 +277,79 @@ function onUserCommand(cmd: string) {
   min-height: 100vh;
   background: var(--color-bg-page);
   transition: grid-template-columns var(--transition);
+}
+
+/* ---------- 强制更新全局横幅 ---------- */
+.layout__force-banner {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  color: #fff;
+}
+
+.layout__force-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 20px;
+}
+
+.layout__force-banner-icon { flex-shrink: 0; color: #fff; }
+
+.layout__force-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.layout__force-banner-text strong {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.layout__force-banner-text span {
+  opacity: 0.9;
+  font-size: 11.5px;
+}
+
+.layout__force-banner-cta {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background var(--transition-fast);
+}
+
+.layout__force-banner-cta:hover { background: #fef2f2; }
+
+.layout__force-banner-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast);
+}
+
+.layout__force-banner-close:hover { background: rgba(255, 255, 255, 0.28); }
+
+@media (max-width: 576px) {
+  .layout__force-banner-inner { flex-wrap: wrap; padding: 10px 14px; }
+  .layout__force-banner-text { order: 3; flex-basis: 100%; }
 }
 
 .layout.is-collapsed {

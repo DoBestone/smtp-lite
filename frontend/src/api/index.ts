@@ -17,6 +17,7 @@ import type {
   Template,
   TemplatePayload,
   UpdateCheck,
+  UpdatePrepareResp,
   VersionInfo,
   Webhook
 } from './types'
@@ -149,7 +150,11 @@ export const systemApi = {
   version: () => client.get<VersionInfo>('/version').then((r) => r.data),
   updateCheck: () => client.get<UpdateCheck>('/system/update-check').then((r) => r.data),
   changelog: () => client.get<{ changelog: string }>('/system/changelog').then((r) => r.data),
-  updatePrepare: () => client.post('/system/update-prepare').then((r) => r.data),
-  update: (body: unknown) => client.post('/system/update', body).then((r) => r.data),
+  updatePrepare: () =>
+    client.post<UpdatePrepareResp>('/system/update-prepare').then((r) => r.data),
+  update: (confirmToken: string) =>
+    client
+      .post<{ message: string }>('/system/update', { confirm_token: confirmToken })
+      .then((r) => r.data),
   exportAccountsUrl: '/api/v1/export/accounts'
 }

@@ -143,11 +143,19 @@ export interface VersionInfo {
 }
 
 export interface UpdateCheck {
+  current: string
+  latest: string
   has_update: boolean
-  latest_version?: string
-  current_version?: string
-  force_update?: boolean
-  release_notes?: string
+  force_update: boolean
+  changelog?: string
+  published_at?: string
+  release_url?: string
+  error?: string
+}
+
+export interface UpdatePrepareResp {
+  confirm_token: string
+  message?: string
 }
 
 export interface SendEmailPayload {

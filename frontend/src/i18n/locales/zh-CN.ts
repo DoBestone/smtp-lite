@@ -52,7 +52,13 @@ export default {
     no: '否',
     logout: '退出登录',
     collapse: '收起',
-    expand: '展开'
+    expand: '展开',
+    close: '关闭'
+  },
+  forceBanner: {
+    title: '强制更新可用 · {version}',
+    desc: '当前版本存在关键安全修复或兼容性问题，请尽快升级。',
+    cta: '前往升级'
   },
   login: {
     title: '欢迎回到 SMTP Lite',
@@ -164,6 +170,14 @@ export default {
     updateTitle: '系统更新',
     updateAvailable: '发现新版本 {version}',
     updateAvailableDesc: '建议更新以获取最新功能与安全修复',
+    forceUpdateAvailable: '强制更新 · {version} 已发布',
+    forceUpdateDesc: '此版本包含关键安全修复或不兼容变更，强烈建议立即升级',
+    forceBadge: '强制更新',
+    updateConfirmTitle: '确认升级',
+    forceUpdateConfirmTitle: '确认执行强制更新',
+    updateConfirmBody: '将升级到版本 {version}，升级过程中服务会短暂不可用（约 30 秒）。确认继续？',
+    updateStarted: '更新任务已启动，正在下载新版本…',
+    updateFailed: '更新失败',
     doUpdate: '立即更新',
     updating: '更新中…',
     updateLatest: '当前已是最新版本',
@@ -234,7 +248,7 @@ export default {
     modeBatch: '批量',
     modeScheduled: '定时',
     to: '收件人',
-    toPlaceholder: 'recipient@example.com',
+    toPlaceholder: "recipient{'@'}example.com",
     batchList: '收件人列表',
     batchPlaceholder: '每行一个邮箱地址',
     importFromGroup: '从分组导入',

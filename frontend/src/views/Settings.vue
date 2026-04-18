@@ -26,7 +26,12 @@
           <div class="ver-cell__value mono">
             {{ latestVersion || '—' }}
             <StatusPill
-              v-if="updateStatus === 'available'"
+              v-if="updateStatus === 'available' && forceUpdate"
+              kind="danger"
+              class="ver-cell__tag"
+            >{{ t('settings.forceBadge') }}</StatusPill>
+            <StatusPill
+              v-else-if="updateStatus === 'available'"
               kind="warning"
               class="ver-cell__tag"
             >{{ t('settings.hasUpdate') }}</StatusPill>
@@ -43,18 +48,27 @@
       <div
         v-if="updateStatus === 'available'"
         class="update-banner"
+        :class="{ 'update-banner--force': forceUpdate }"
       >
         <div class="update-banner__icon">
-          <el-icon :size="18"><Upload /></el-icon>
+          <el-icon :size="18">
+            <Warning v-if="forceUpdate" />
+            <Upload v-else />
+          </el-icon>
         </div>
         <div class="update-banner__text">
           <div class="update-banner__title">
-            {{ tFmt('settings.updateAvailable', { version: latestVersion }) }}
+            {{ tFmt(
+              forceUpdate ? 'settings.forceUpdateAvailable' : 'settings.updateAvailable',
+              { version: latestVersion }
+            ) }}
           </div>
-          <div class="update-banner__desc">{{ t('settings.updateAvailableDesc') }}</div>
+          <div class="update-banner__desc">
+            {{ t(forceUpdate ? 'settings.forceUpdateDesc' : 'settings.updateAvailableDesc') }}
+          </div>
         </div>
         <el-button
-          type="primary"
+          :type="forceUpdate ? 'danger' : 'primary'"
           :loading="updating"
           @click="doUpdate"
         >
@@ -191,7 +205,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -201,12 +216,14 @@ import {
   Operation,
   Refresh,
   Upload,
-  User
+  User,
+  Warning
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { authApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { useVersionStore } from '@/stores/version'
 import { setI18nLocale } from '@/i18n'
 import StatusPill from './components/StatusPill.vue'
 
@@ -214,62 +231,52 @@ const { t, locale } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const versionStore = useVersionStore()
 
-// ---------- 版本 ----------
-const currentVersion = ref('')
-const latestVersion = ref('')
+// ---------- 版本（来自 store） ----------
+const {
+  currentVersion,
+  latestVersion,
+  forceUpdate,
+  checking,
+  updating,
+  updateStatus,
+  changelog: storeChangelog
+} = storeToRefs(versionStore)
+
 const changelog = ref('')
-const checking = ref(false)
-const updating = ref(false)
-
-const updateStatus = computed<'available' | 'latest' | ''>(() => {
-  if (!currentVersion.value || !latestVersion.value) return ''
-  return currentVersion.value === latestVersion.value ? 'latest' : 'available'
-})
-
-async function loadVersion() {
-  try {
-    const v = await systemApi.version()
-    currentVersion.value = v.version
-  } catch {
-    /* ignore */
-  }
-}
 
 async function loadChangelog() {
   try {
     const c = await systemApi.changelog()
-    changelog.value = c.changelog?.trim() ?? ''
+    changelog.value = c.changelog?.trim() ?? storeChangelog.value
   } catch {
-    /* ignore */
-  }
-}
-
-async function checkUpdate() {
-  checking.value = true
-  try {
-    const r = await systemApi.updateCheck()
-    latestVersion.value = r.latest_version ?? ''
-    if (r.current_version) currentVersion.value = r.current_version
-  } finally {
-    checking.value = false
+    changelog.value = storeChangelog.value
   }
 }
 
 async function doUpdate() {
-  const confirmed = await ElMessageBox.confirm(
-    `确定升级到 ${latestVersion.value}？升级过程中服务会短暂不可用。`,
-    { type: 'warning', confirmButtonText: t('settings.doUpdate'), cancelButtonText: t('common.cancel') }
-  ).catch(() => false)
+  const title = forceUpdate.value
+    ? t('settings.forceUpdateConfirmTitle')
+    : t('settings.updateConfirmTitle')
+  const body = tFmt('settings.updateConfirmBody', { version: latestVersion.value })
+
+  const confirmed = await ElMessageBox.confirm(body, title, {
+    type: forceUpdate.value ? 'error' : 'warning',
+    confirmButtonText: t('settings.doUpdate'),
+    cancelButtonText: t('common.cancel'),
+    confirmButtonClass: forceUpdate.value ? 'el-button--danger' : ''
+  }).catch(() => false)
   if (!confirmed) return
 
-  updating.value = true
   try {
-    await systemApi.updatePrepare()
-    await systemApi.update({ confirm: true })
-    ElMessage.success('更新任务已启动，请稍候刷新')
-  } finally {
-    updating.value = false
+    ElMessage.info(t('settings.updateStarted'))
+    await versionStore.runUpdate()
+    // 成功时页面会 reload，走不到这里
+  } catch (e) {
+    ElMessage.error(
+      t('settings.updateFailed') + ': ' + ((e as Error).message || 'unknown')
+    )
   }
 }
 
@@ -333,11 +340,15 @@ function tFmt(key: string, values: Record<string, string>): string {
   return t(key, values)
 }
 
-onMounted(() => {
-  loadVersion()
+onMounted(async () => {
+  await versionStore.loadVersion()
   loadChangelog()
-  checkUpdate()
+  await versionStore.checkUpdate()
 })
+
+async function checkUpdate() {
+  await versionStore.checkUpdate()
+}
 </script>
 
 <style scoped>
@@ -430,6 +441,11 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 
+.update-banner--force {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border-color: #fca5a5;
+}
+
 .update-banner__icon {
   width: 36px;
   height: 36px;
@@ -440,6 +456,11 @@ onMounted(() => {
   background: var(--color-primary);
   color: #fff;
   box-shadow: var(--shadow-primary);
+}
+
+.update-banner--force .update-banner__icon {
+  background: #dc2626;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
 }
 
 .update-banner__text { flex: 1; }

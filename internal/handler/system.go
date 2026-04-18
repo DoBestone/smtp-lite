@@ -23,11 +23,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// normalizeVersion 剥离 v 前缀并裁掉预发布后缀，用于比较。
+// 例如 "v2.4.0" / "2.4.0" / "v2.4.0-rc.1" → "2.4.0"
+func normalizeVersion(ver string) string {
+	v := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ver), "v"))
+	if i := strings.IndexAny(v, "-+"); i >= 0 {
+		v = v[:i]
+	}
+	return v
+}
+
 // isForceUpdateVersion 判断版本号是否为强制更新版本。
-// 规则：第三位（patch）为 0 或 5 的倍数时属于强制更新版本，例如 v1.5.0、v1.5.5。
+// 规则：patch 位为 5 的倍数（含 0）属于强制更新，例如 v1.5.0、v2.3.5、v2.4.0。
+// 语义上相当于每 5 个 patch 或每个 minor 首个版本强制升级。
 func isForceUpdateVersion(ver string) bool {
-	v := strings.TrimPrefix(ver, "v")
-	parts := strings.Split(v, ".")
+	parts := strings.Split(normalizeVersion(ver), ".")
 	if len(parts) != 3 {
 		return false
 	}
@@ -105,7 +115,7 @@ func (h *SystemHandler) UpdateCheck(c *gin.Context) {
 		return
 	}
 
-	hasUpdate := rel.TagName != current
+	hasUpdate := normalizeVersion(rel.TagName) != normalizeVersion(current)
 	c.JSON(200, gin.H{
 		"current":      current,
 		"latest":       rel.TagName,

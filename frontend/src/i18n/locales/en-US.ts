@@ -52,7 +52,13 @@ export default {
     no: 'No',
     logout: 'Logout',
     collapse: 'Collapse',
-    expand: 'Expand'
+    expand: 'Expand',
+    close: 'Close'
+  },
+  forceBanner: {
+    title: 'Mandatory update available · {version}',
+    desc: 'The current version has critical security fixes or compatibility issues. Please upgrade soon.',
+    cta: 'Upgrade now'
   },
   login: {
     title: 'Welcome back to SMTP Lite',
@@ -164,6 +170,14 @@ export default {
     updateTitle: 'System Update',
     updateAvailable: 'New version {version} available',
     updateAvailableDesc: 'Upgrade for latest features and security fixes',
+    forceUpdateAvailable: 'Mandatory update · {version} released',
+    forceUpdateDesc: 'This release contains critical security fixes or breaking changes. Upgrading immediately is strongly recommended.',
+    forceBadge: 'Mandatory',
+    updateConfirmTitle: 'Confirm upgrade',
+    forceUpdateConfirmTitle: 'Confirm mandatory upgrade',
+    updateConfirmBody: 'Upgrade to {version}? The service will be briefly unavailable (~30s) during the update.',
+    updateStarted: 'Update started, downloading new version…',
+    updateFailed: 'Update failed',
     doUpdate: 'Update now',
     updating: 'Updating…',
     updateLatest: 'You are on the latest version',
@@ -234,7 +248,7 @@ export default {
     modeBatch: 'Batch',
     modeScheduled: 'Scheduled',
     to: 'Recipient',
-    toPlaceholder: 'recipient@example.com',
+    toPlaceholder: "recipient{'@'}example.com",
     batchList: 'Recipient List',
     batchPlaceholder: 'One email per line',
     importFromGroup: 'Import from group',
