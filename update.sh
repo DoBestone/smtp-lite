@@ -258,24 +258,94 @@ restart_service() {
   fi
 }
 
+# 收集占用目标端口的 PID 列表（空格分隔）
+_port_pids() {
+  local port="$1"
+  local pids=""
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti:"${port}" -sTCP:LISTEN 2>/dev/null | tr '\n' ' ' || true)
+  fi
+  if [ -z "$pids" ] && command -v ss >/dev/null 2>&1; then
+    pids=$(ss -tlnp 2>/dev/null \
+      | awk -v p=":${port}" '$4 ~ p { print }' \
+      | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u | tr '\n' ' ' || true)
+  fi
+  echo "$pids"
+}
+
+# 轮询直到端口释放或超时（秒）
+_wait_port_free() {
+  local port="$1"
+  local timeout="${2:-15}"
+  local i=0
+  while [ $i -lt "$timeout" ]; do
+    local pids
+    pids=$(_port_pids "$port")
+    [ -z "${pids// }" ] && return 0
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
 _restart_process() {
-  PID=$(pgrep -f "${BINARY}" 2>/dev/null | head -1 || true)
-  if [ -n "$PID" ]; then
-    info "停止旧进程 (PID: ${PID})..."
-    kill "$PID" 2>/dev/null || true
-    for _i in 1 2 3 4 5; do
-      kill -0 "$PID" 2>/dev/null || break
+  # 1) 按端口精确找到占用者（比 pgrep 靠谱），再补一次 pgrep 作 fallback
+  local port_pids pgrep_pids all_pids
+  port_pids=$(_port_pids "$PORT")
+  pgrep_pids=$(pgrep -f "${BINARY}" 2>/dev/null | tr '\n' ' ' || true)
+  # 合并去重，排除当前 shell 及其父进程
+  all_pids=$(echo "$port_pids $pgrep_pids" | tr ' ' '\n' \
+    | awk -v s=$$ -v p=$PPID 'NF && $0!=s && $0!=p' \
+    | sort -u | tr '\n' ' ')
+
+  if [ -n "${all_pids// }" ]; then
+    info "停止旧进程: ${all_pids}"
+    # SIGTERM
+    for pid in $all_pids; do
+      kill "$pid" 2>/dev/null || true
+    done
+    # 最多等 10s 优雅退出
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+      local alive=""
+      for pid in $all_pids; do
+        kill -0 "$pid" 2>/dev/null && alive="$alive $pid"
+      done
+      [ -z "${alive// }" ] && break
       sleep 1
     done
+    # 还活着就 SIGKILL
+    for pid in $all_pids; do
+      if kill -0 "$pid" 2>/dev/null; then
+        warn "PID ${pid} 未响应 SIGTERM，强制 SIGKILL"
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    done
   fi
+
+  # 2) 等端口真正释放（内核可能还占着几秒）
+  if ! _wait_port_free "$PORT" 15; then
+    local leftover
+    leftover=$(_port_pids "$PORT")
+    err "端口 ${PORT} 仍被占用: ${leftover}\n请手动处理: kill -9 ${leftover}"
+  fi
+
   info "启动新进程..."
   cd "$SCRIPT_DIR"
   nohup "$BINARY" >> "$SCRIPT_DIR/smtp-lite.log" 2>&1 &
   NEW_PID=$!
-  sleep 1
-  kill -0 "$NEW_PID" 2>/dev/null \
-    && ok "服务已启动 (PID: ${NEW_PID})" \
-    || err "服务启动失败，请检查日志: $SCRIPT_DIR/smtp-lite.log"
+  # 给足服务启动时间（sqlite 迁移/路由注册），并二次确认进程真的在监听端口
+  sleep 3
+  if ! kill -0 "$NEW_PID" 2>/dev/null; then
+    err "服务启动失败（PID ${NEW_PID} 已退出），请检查日志: $SCRIPT_DIR/smtp-lite.log"
+  fi
+  if ! _port_pids "$PORT" | grep -q .; then
+    warn "进程存活但尚未监听端口 ${PORT}，再等 5s"
+    sleep 5
+    if ! _port_pids "$PORT" | grep -q .; then
+      err "服务未能绑定端口 ${PORT}，请检查日志: $SCRIPT_DIR/smtp-lite.log"
+    fi
+  fi
+  ok "服务已启动 (PID: ${NEW_PID}, 监听 :${PORT})"
 }
 
 # ── 仅更新前端 ───────────────────────────────────────────────
