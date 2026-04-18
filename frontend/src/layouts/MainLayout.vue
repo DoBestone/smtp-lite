@@ -376,22 +376,29 @@ function onUserCommand(cmd: string) {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 14px 14px 12px;
+  height: 72px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--color-border-light);
 }
 
 .layout__brand.is-compact {
-  padding: 14px 0 12px;
+  padding: 10px 0;
 }
 
 .layout__brand-banner {
-  display: block;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 180px;
+  max-height: 52px;
 }
 
 .layout__brand-banner img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
+  object-fit: contain;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
