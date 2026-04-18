@@ -176,10 +176,14 @@ func main() {
 	httpFS := http.FS(frontendDist)
 	fileServer := http.FileServer(httpFS)
 
-	// 静态资源（/assets/, /favicon.*）
+	// 静态资源（/assets/, /favicon.*, /logo.*, 其它 web/dist 根目录图片）
 	r.GET("/assets/*filepath", gin.WrapH(http.StripPrefix("/", fileServer)))
 	r.GET("/favicon.ico", gin.WrapH(http.StripPrefix("/", fileServer)))
 	r.GET("/favicon.svg", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/logo.png", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/logo.webp", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/logo.svg", gin.WrapH(http.StripPrefix("/", fileServer)))
+	r.GET("/logo.jpg", gin.WrapH(http.StripPrefix("/", fileServer)))
 
 	// 追踪端点（公开，无需认证）
 	r.GET("/track/open/:track_id.png", trackHandler.Open)
